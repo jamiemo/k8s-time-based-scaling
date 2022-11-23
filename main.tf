@@ -111,6 +111,15 @@ module "eks_blueprints" {
       type                          = "ingress"
       source_cluster_security_group = true
     }
+
+    ingress_nodes_matrics_server_port = {
+      description                   = "Cluster API to Nodegroup for Metrics Server"
+      protocol                      = "tcp"
+      from_port                     = 4443
+      to_port                       = 4443
+      type                          = "ingress"
+      source_cluster_security_group = true
+    }
   }
 
   # Add karpenter.sh/discovery tag so that we can use this as securityGroupSelector in karpenter provisioner
