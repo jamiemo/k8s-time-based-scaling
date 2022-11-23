@@ -246,10 +246,17 @@ resource "kubectl_manifest" "nginx_deployment" {
 # IAM Roles for Service Accounts to set minReplicas for HPA
 #---------------------------------------------------------------
 
+resource "kubernetes_service_account" "hpa_irsa_service_account" {
+  metadata {
+    name = "hpa-irsa"
+  }
+}
+
 module "iam_eks_role" {
   source      = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
   role_name   = "${local.name}-hpa-irsa"
   create_role = true
+  depends_on = [kubernetes_service_account.hpa_irsa_service_account]
 
   oidc_providers = {
     main = {
