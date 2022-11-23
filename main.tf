@@ -259,7 +259,7 @@ module "iam_eks_role" {
   }
 }
 
-resource "aws_iam_policy" "scaling_hpa_policy" {
+resource "aws_iam_policy" "hpa_irsa_policy" {
   name        = "${local.name}-hpa-irsa"
   path        = "/"
   description = "Allows IAM Roles for Service Accounts to use kubectl to set minReplicas for HPA"
@@ -278,9 +278,9 @@ resource "aws_iam_policy" "scaling_hpa_policy" {
   })
 }
 
-resource "aws_iam_role_policy_attachment" "scaling_hpa_attach" {
+resource "aws_iam_role_policy_attachment" "hpa_irsa_attach" {
   role       = "${local.name}-hpa-irsa"
-  policy_arn = aws_iam_policy.scaling_hpa_policy.arn
+  policy_arn = aws_iam_policy.hpa_irsa_policy.arn
 }
 
 #---------------------------------------------------------------
