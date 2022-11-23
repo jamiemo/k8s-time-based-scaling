@@ -166,8 +166,7 @@ module "eks_blueprints_kubernetes_addons" {
   enable_karpenter                    = true
   enable_aws_node_termination_handler = true
   enable_kubecost                     = true
-
-  enable_datadog_operator = true
+  enable_metrics_server               = true
 
   tags = local.tags
 }
@@ -241,62 +240,6 @@ resource "kubectl_manifest" "nginx_deployment" {
   yaml_body = each.value
 
   depends_on = [module.eks_blueprints_kubernetes_addons]
-}
-
-#---------------------------------------------------------------
-# Metrics Server
-#---------------------------------------------------------------
-# Required for Horizontal Pod Autoscaler
-
-resource "helm_release" "metrics-server" {
-  name = "metrics-server"
-  repository = "https://kubernetes-sigs.github.io/metrics-server/"
-  chart = "metrics-server"
-  namespace = "kube-system"
-  version = "3.8.2"
-  values = [jsonencode({
-    podAnnotations = {
-      "cluster-autoscaler.kubernetes.io/safe-to-evict" = "true"
-    }
-  })]
-}
-
-#---------------------------------------------------------------
-# Datadog Operator
-#---------------------------------------------------------------
-
-resource "kubernetes_secret_v1" "datadog_api_key" {
-  metadata {
-    name      = "datadog-secret"
-    namespace = "datadog-operator"
-  }
-
-  data = {
-    # This will reveal a secret in the Terraform state
-    api-key = var.datadog_api_key
-  }
-
-  # Ensure the operator is deployed first
-  depends_on = [module.eks_blueprints_kubernetes_addons]
-}
-
-resource "kubectl_manifest" "datadog_agent" {
-  yaml_body = <<-YAML
-    apiVersion: datadoghq.com/v1alpha1
-    kind: DatadogAgent
-    metadata:
-      name: datadog
-      namespace: datadog-operator
-    spec:
-      clusterName: ${module.eks_blueprints.eks_cluster_id}
-      credentials:
-        apiSecret:
-          secretName: ${kubernetes_secret_v1.datadog_api_key.metadata[0].name}
-          keyName: api-key
-      features:
-        kubeStateMetricsCore:
-          enabled: true
-  YAML
 }
 
 #---------------------------------------------------------------
