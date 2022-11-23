@@ -283,6 +283,15 @@ resource "aws_iam_role_policy_attachment" "hpa_irsa_attach" {
   policy_arn = aws_iam_policy.hpa_irsa_policy.arn
 }
 
+resource "aws_ecr_repository" "cluster_repo" {
+  name                 = "${local.name}"
+  image_tag_mutability = "MUTABLE"
+
+  image_scanning_configuration {
+    scan_on_push = true
+  }
+}
+
 #---------------------------------------------------------------
 # Supporting Resources
 #---------------------------------------------------------------
