@@ -232,6 +232,23 @@ resource "kubectl_manifest" "karpenter_provisioner" {
 }
 
 #---------------------------------------------------------------
+# Metrics Server
+#---------------------------------------------------------------
+
+resource "helm_release" "metrics-server" {
+  name = "metrics-server"
+  repository = "https://kubernetes-sigs.github.io/metrics-server/"
+  chart = "metrics-server"
+  namespace = "kube-system"
+  version = "3.8.2"
+  values = [jsonencode({
+    podAnnotations = {
+      "cluster-autoscaler.kubernetes.io/safe-to-evict" = "true"
+    }
+  })]
+}
+
+#---------------------------------------------------------------
 # Datadog Operator
 #---------------------------------------------------------------
 
