@@ -243,6 +243,47 @@ resource "kubectl_manifest" "nginx_deployment" {
 }
 
 #---------------------------------------------------------------
+# IAM Roles for Service Accounts to set minReplicas for HPA
+#---------------------------------------------------------------
+
+module "iam_eks_role" {
+  source      = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
+  role_name   = "${local.name}-hpa-irsa"
+  create_role = true
+
+  oidc_providers = {
+    main = {
+      provider_arn               = module.eks_blueprints.oidc_provider
+      namespace_service_accounts = ["default:hpa-irsa"]
+    }
+  }
+}
+
+resource "aws_iam_policy" "scaling_hpa_policy" {
+  name        = "${local.name}-hpa-irsa"
+  path        = "/"
+  description = "Allows IAM Roles for Service Accounts to use kubectl to set minReplicas for HPA"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = [
+                "eks:*"
+            ]
+        Effect = "Allow"
+        Resource = module.eks_blueprints.eks_cluster_arn
+      },
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "scaling_hpa_attach" {
+  role       = "${local.name}-hpa-irsa"
+  policy_arn = aws_iam_policy.scaling_hpa_policy.arn
+}
+
+#---------------------------------------------------------------
 # Supporting Resources
 #---------------------------------------------------------------
 
