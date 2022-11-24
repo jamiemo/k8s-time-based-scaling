@@ -150,6 +150,10 @@ module "eks_blueprints" {
     }
   }
 
+  iam_role_additional_policies = [
+    "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
+  ]
+
   tags = local.tags
 }
 
@@ -291,7 +295,7 @@ resource "aws_iam_role_policy_attachment" "hpa_irsa_attach" {
 }
 
 resource "aws_ecr_repository" "cluster_repo" {
-  name                 = "${local.name}"
+  name                 = "kubectl"
   image_tag_mutability = "MUTABLE"
 
   image_scanning_configuration {
