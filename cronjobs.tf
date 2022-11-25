@@ -5,7 +5,7 @@
 resource "kubernetes_cron_job" "nginx_scale_up" {
   metadata {
     name = "nginx-scale-up"
-    namespace = "nginx-demo"
+    namespace = kubernetes_namespace.nginx_demo.metadata[0].name
   }
   spec {
     concurrency_policy            = "Replace"
@@ -36,7 +36,7 @@ resource "kubernetes_cron_job" "nginx_scale_up" {
 resource "kubernetes_cron_job" "nginx_scale_down" {
   metadata {
     name = "nginx-scale-down"
-    namespace = "nginx-demo"
+    namespace = kubernetes_namespace.nginx_demo.metadata[0].name
   }
   spec {
     concurrency_policy            = "Replace"
