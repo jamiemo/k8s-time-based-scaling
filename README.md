@@ -52,21 +52,14 @@ Enter `yes` to apply.
 EKS Cluster details can be extracted from terraform output or from AWS Console to get the name of cluster. This following command used to update the `kubeconfig` in your local machine where you run kubectl commands to interact with your EKS Cluster.
 
 #### Step 5: Run update-kubeconfig command.
-
-`~/.kube/config` file gets updated with cluster details and certificate from the below command
+This will allow kubectl to connect to the EKS cluster. The command is listed in the Terraform output. The `~/.kube/config` file gets updated with cluster details and certificate from the below command:
 
 ```sh
 aws eks --region <region> update-kubeconfig --name <cluster-name>
 ```
 
-## Update ~/.kube/config
-
- ```sh
-aws eks --region <region> update-kubeconfig --name <cluster-name>    
-```
-
 ## Build kubectl Image
-The ECR repo URL is in the Terraform output.
+This will create a custom image with kubectl that authenticates using the IAM Roles for Service Accounts, which is then uploaded to ECR fo deployment in CronJobs. The ECR repo URL is in the Terraform output.
 
 Authenticate to ECR. [Pushing a Docker image](https://docs.aws.amazon.com/AmazonECR/latest/userguide/docker-push-ecr-image.html).
 
