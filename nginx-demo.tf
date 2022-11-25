@@ -1,17 +1,15 @@
-resource "kubernetes_namespace" "nginx_demo" {
-  metadata {
-    name = "nginx-demo"
-  }
-}
-
 resource "kubernetes_deployment" "nginx_demo" {
   metadata {
     name      = "nginx-demo"
-    namespace = kubernetes_namespace.nginx_demo.metadata[0].name
+    namespace = "nginx-demo"
     labels = {
       app = "nginx-demo"
     }
   }
+  depends_on = [
+    # nginx-demo Namespace
+    module.eks_blueprints.eks_cluster_id
+  ]
   spec {
     replicas = 2
     selector {
@@ -65,7 +63,7 @@ resource "kubernetes_deployment" "nginx_demo" {
 resource "kubernetes_service" "nginx_demo" {
   metadata {
     name      = "nginx-demo"
-    namespace = kubernetes_namespace.nginx_demo.metadata[0].name
+    namespace = "nginx-demo"
   }
   spec {
     selector = {
@@ -82,7 +80,7 @@ resource "kubernetes_service" "nginx_demo" {
 resource "kubernetes_horizontal_pod_autoscaler" "nginx_demo" {
   metadata {
     name      = "nginx-demo"
-    namespace = kubernetes_namespace.nginx_demo.metadata[0].name
+    namespace = "nginx-demo"
   }
 
   spec {
