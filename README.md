@@ -1,5 +1,5 @@
 # k8s-time-based-scaling
-Based of the [EKS Cluster with Karpenter Cluster Autoscaler](https://github.com/aws-ia/terraform-aws-eks-blueprints/tree/main/examples/karpenter) eample, this depoys a Horizontal Pod Autoscaler for NGINX and uses CronJobs to update the minReplicas for time based autoscaling with Karpenter, while still allowing load generated autoscaling.
+Based of the [EKS Cluster with Karpenter Cluster Autoscaler](https://github.com/aws-ia/terraform-aws-eks-blueprints/tree/main/examples/karpenter) example, this depoys a Horizontal Pod Autoscaler for NGINX and uses CronJobs to update the `minReplicas` for time based autoscaling with Karpenter, while still allowing load generated autoscaling.
 
 Inspired by [Time Based Scaling for Kubernetes Deployments](https://medium.com/symbl-ai-engineering-and-data-science/time-based-scaling-for-kubernetes-deployments-9ef7ada93eb7).
 
@@ -34,7 +34,7 @@ terraform init
 to verify the resources created by this execution
 
 ```sh
-erraform plan
+terraform plan
 ```
 
 #### Step 4: Finally, Terraform APPLY
@@ -56,16 +56,18 @@ EKS Cluster details can be extracted from terraform output or from AWS Console t
 `~/.kube/config` file gets updated with cluster details and certificate from the below command
 
 ```sh
-aws eks --region <Enter-your-region> update-kubeconfig --name <cluster-name>
+aws eks --region <region> update-kubeconfig --name <cluster-name>
 ```
 
 ## Update ~/.kube/config
 
  ```sh
-aws eks --region <Enter-your-region> update-kubeconfig --name <cluster-name>    
+aws eks --region <region> update-kubeconfig --name <cluster-name>    
 ```
 
 ## Build kubectl Image
+The ECR repo URL is in the Terraform output.
+
 Authenticate to ECR. [Pushing a Docker image](https://docs.aws.amazon.com/AmazonECR/latest/userguide/docker-push-ecr-image.html).
 
 ```sh
@@ -80,6 +82,7 @@ docker push <ECR repo URL>
 ```
 
 ## Generate Load
+If you want to generate some load, but not required for autoscaling.
 
 ```sh
 kubectl run -i --tty load-generator --rm --image=busybox:1.28 --restart=Never -- /bin/sh -c "while true; do wget -q -O- http://nginx-demo; done"
