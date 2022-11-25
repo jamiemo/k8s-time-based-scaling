@@ -1,7 +1,13 @@
-resource "kubernetes_deployment" "nginx_demo" {
+resource "kubernetes_namespace" "nginx_demo" {
   metadata {
     name = "nginx-demo"
-    namespace = "nginx-demo"
+  }
+}
+
+resource "kubernetes_deployment" "nginx_demo" {
+  metadata {
+    name      = "nginx-demo"
+    namespace = kubernetes_namespace.nginx_demo.metadata[0].name
     labels = {
       app = "nginx-demo"
     }
@@ -58,8 +64,8 @@ resource "kubernetes_deployment" "nginx_demo" {
 
 resource "kubernetes_service" "nginx_demo" {
   metadata {
-    name = "nginx-demo"
-    namespace = "nginx-demo"
+    name      = "nginx-demo"
+    namespace = kubernetes_namespace.nginx_demo.metadata[0].name
   }
   spec {
     selector = {
@@ -75,8 +81,8 @@ resource "kubernetes_service" "nginx_demo" {
 
 resource "kubernetes_horizontal_pod_autoscaler" "nginx_demo" {
   metadata {
-    name = "nginx-demo"
-    namespace = "nginx-demo"
+    name      = "nginx-demo"
+    namespace = kubernetes_namespace.nginx_demo.metadata[0].name
   }
 
   spec {
@@ -92,7 +98,7 @@ resource "kubernetes_horizontal_pod_autoscaler" "nginx_demo" {
       resource {
         name = "cpu"
         target {
-          type  = "Utilization"
+          type                = "Utilization"
           average_utilization = "50"
         }
       }
