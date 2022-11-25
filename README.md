@@ -98,4 +98,3 @@ terraform destroy -auto-approve
 
 # ToDo
 - Reduce permissions from eks:* in hpa_irsa_policy
-- Reduce cluster-admin ClusterRole for kubectl-hpa service account

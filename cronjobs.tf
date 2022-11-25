@@ -5,6 +5,7 @@
 resource "kubernetes_cron_job" "nginx_scale_up" {
   metadata {
     name = "nginx-scale-up"
+    namespace = "nginx-demo"
   }
   spec {
     concurrency_policy            = "Replace"
@@ -22,8 +23,8 @@ resource "kubernetes_cron_job" "nginx_scale_up" {
           spec {
             container {
               name    = "kubectl"
-              image   = aws_ecr_repository.cluster_repo.name
-              command = ["/bin/sh", "-c", "kubectl patch hpa ${kubernetes_horizontal_pod_autoscaler.nginx_demo.metadata[0].name} -n default -p '{\"spec\":{\"minReplicas\": 10}}'"]
+              image   = "${aws_ecr_repository.cluster_repo.name}:latest"
+              command = ["/bin/sh", "-c", "kubectl patch hpa ${kubernetes_horizontal_pod_autoscaler.nginx_demo.metadata[0].name} -n nginx-demo -p '{\"spec\":{\"minReplicas\": 10}}'"]
             }
           }
         }
@@ -35,6 +36,7 @@ resource "kubernetes_cron_job" "nginx_scale_up" {
 resource "kubernetes_cron_job" "nginx_scale_down" {
   metadata {
     name = "nginx-scale-down"
+    namespace = "nginx-demo"
   }
   spec {
     concurrency_policy            = "Replace"
@@ -52,8 +54,8 @@ resource "kubernetes_cron_job" "nginx_scale_down" {
           spec {
             container {
               name    = "kubectl"
-              image   = aws_ecr_repository.cluster_repo.name
-              command = ["/bin/sh", "-c", "kubectl patch hpa ${kubernetes_horizontal_pod_autoscaler.nginx_demo.metadata[0].name} -n default -p '{\"spec\":{\"minReplicas\": 2}}'"]
+              image   = "${aws_ecr_repository.cluster_repo.name}:latest"
+              command = ["/bin/sh", "-c", "kubectl patch hpa ${kubernetes_horizontal_pod_autoscaler.nginx_demo.metadata[0].name} -n nginx-demo -p '{\"spec\":{\"minReplicas\": 2}}'"]
             }
           }
         }
