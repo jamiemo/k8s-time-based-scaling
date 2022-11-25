@@ -23,7 +23,7 @@ resource "kubernetes_cron_job" "nginx_scale_up" {
             container {
               name    = "kubectl"
               image   = aws_ecr_repository.cluster_repo.name
-              command = ["/bin/sh", "-c", "kubectl patch hpa ${kubernetes_horizontal_pod_autoscaler.nginx_demo.metadata[0].name} -p '{\"spec\":{\"minReplicas\": 10}}'"]
+              command = ["/bin/sh", "-c", "kubectl patch hpa ${kubernetes_horizontal_pod_autoscaler.nginx_demo.metadata[0].name} -n default -p '{\"spec\":{\"minReplicas\": 10}}'"]
             }
           }
         }
@@ -53,7 +53,7 @@ resource "kubernetes_cron_job" "nginx_scale_down" {
             container {
               name    = "kubectl"
               image   = aws_ecr_repository.cluster_repo.name
-              command = ["/bin/sh", "-c", "kubectl patch hpa ${kubernetes_horizontal_pod_autoscaler.nginx_demo.metadata[0].name} -p '{\"spec\":{\"minReplicas\": 2}}'"]
+              command = ["/bin/sh", "-c", "kubectl patch hpa ${kubernetes_horizontal_pod_autoscaler.nginx_demo.metadata[0].name} -n default -p '{\"spec\":{\"minReplicas\": 2}}'"]
             }
           }
         }
