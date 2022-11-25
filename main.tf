@@ -289,7 +289,7 @@ resource "kubernetes_cluster_role_binding" "hpa_irsa_clusterrole" {
   }
   subject {
     kind      = "ServiceAccount"
-    name      = "kubectl-hpa"
+    name      = "cluster-admin"
     namespace = "nginx-demo"
   }
 }
