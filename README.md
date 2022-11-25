@@ -100,4 +100,4 @@ Finally, destroy any additional resources that are not in the above modules
 
 # ToDo
 - Reduce permissions from eks:* in hpa_irsa_policy
-- Reduce cluster-admin ClusterRole for kubectl-hpa service accounut
+- Reduce cluster-admin ClusterRole for kubectl-hpa service account
