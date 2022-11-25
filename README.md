@@ -82,14 +82,19 @@ kubectl run -i --tty load-generator --rm --image=busybox:1.28 --restart=Never --
 ```
 
 ## Destroy the Kubernetes Add-ons, EKS cluster with Node groups and VPC
+Delete all of the images from the ECR repo, or it cannot be deleted.
 
-    terraform destroy -target="module.eks_blueprints_kubernetes_addons" -auto-approve
-    terraform destroy -target="module.eks_blueprints" -auto-approve
-    terraform destroy -target="module.vpc" -auto-approve
+```sh
+terraform destroy -target="module.eks_blueprints_kubernetes_addons" -auto-approve
+terraform destroy -target="module.eks_blueprints" -auto-approve
+terraform destroy -target="module.vpc" -auto-approve
+```
 
 Finally, destroy any additional resources that are not in the above modules
 
-    terraform destroy -auto-approve
+```sh
+terraform destroy -auto-approve
+```
 
 # ToDo
 - Reduce permissions from eks:* in hpa_irsa_policy
