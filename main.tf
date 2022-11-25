@@ -250,28 +250,55 @@ resource "kubectl_manifest" "nginx_deployment" {
 # IAM Roles for Service Accounts to set minReplicas for HPA
 #---------------------------------------------------------------
 
-resource "kubernetes_service_account" "hpa_irsa_service_account" {
-  metadata {
-    name = "hpa-irsa"
-  }
+module "irsa" {
+    source = "github.com/aws-ia/terraform-aws-eks-blueprints//modules/irsa"
+    kubernetes_namespace       = "kubectl"
+    kubernetes_service_account = "kubectl-hpa"
+    irsa_iam_policies          = [aws_iam_policy.hpa_irsa_policy.arn]
+    eks_cluster_id             = module.eks_blueprints.eks_cluster_id
+    eks_oidc_provider_arn      = module.eks_blueprints.eks_oidc_provider_arn
 }
 
-module "iam_eks_role" {
-  source      = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
-  role_name   = "${local.name}-hpa-irsa"
-  create_role = true
-  depends_on = [kubernetes_service_account.hpa_irsa_service_account]
+# resource "kubernetes_service_account" "hpa_irsa_service_account" {
+#   metadata {
+#     name = "hpa-irsa"
+#   }
+# }
 
-  oidc_providers = {
-    main = {
-      provider_arn               = module.eks_blueprints.oidc_provider
-      namespace_service_accounts = ["default:hpa-irsa"]
-    }
-  }
-}
+# resource "kubernetes_service_account_v1" "irsa" {
+#   count = var.create_kubernetes_service_account ? 1 : 0
+#   metadata {
+#     name        = var.kubernetes_service_account
+#     namespace   = try(kubernetes_namespace_v1.irsa[0].metadata[0].name, var.kubernetes_namespace)
+#     annotations = var.irsa_iam_policies != null ? { "eks.amazonaws.com/role-arn" : aws_iam_role.irsa[0].arn } : null
+#   }
+
+#   dynamic "image_pull_secret" {
+#     for_each = var.kubernetes_svc_image_pull_secrets != null ? var.kubernetes_svc_image_pull_secrets : []
+#     content {
+#       name = image_pull_secret.value
+#     }
+#   }
+
+#   automount_service_account_token = true
+# }
+
+# module "iam_eks_role" {
+#   source      = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
+#   role_name   = "${local.name}-hpa-irsa"
+#   create_role = true
+#   depends_on = [kubernetes_service_account.hpa_irsa_service_account]
+
+#   oidc_providers = {
+#     main = {
+#       provider_arn               = module.eks_blueprints.oidc_provider
+#       namespace_service_accounts = ["default:hpa-irsa"]
+#     }
+#   }
+# }
 
 resource "aws_iam_policy" "hpa_irsa_policy" {
-  name        = "${local.name}-hpa-irsa"
+  name        = "${local.name}-kubectl-hpa-irsa"
   path        = "/"
   description = "Allows IAM Roles for Service Accounts to use kubectl to set minReplicas for HPA"
 
@@ -289,10 +316,25 @@ resource "aws_iam_policy" "hpa_irsa_policy" {
   })
 }
 
-resource "aws_iam_role_policy_attachment" "hpa_irsa_attach" {
-  role       = "${local.name}-hpa-irsa"
-  policy_arn = aws_iam_policy.hpa_irsa_policy.arn
+resource "kubernetes_cluster_role_binding" "hpa_irsa_clusterrole" {
+  metadata {
+    name = "${local.name}-kubectl-hpa-irsa"
+  }
+  role_ref {
+    api_group = "rbac.authorization.k8s.io"
+    kind      = "ClusterRole"
+    name      = "cluster-admin"
+  }
+  subject {
+    kind      = "ServiceAccount"
+    name      = "kubectl-hpa"
+    namespace = "kubectl"
+  }
 }
+# resource "aws_iam_role_policy_attachment" "hpa_irsa_attach" {
+#   role       = "${local.name}-hpa-irsa"
+#   policy_arn = aws_iam_policy.hpa_irsa_policy.arn
+# }
 
 resource "aws_ecr_repository" "cluster_repo" {
   name                 = "kubectl"
