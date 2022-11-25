@@ -8,3 +8,5 @@ kubectl config set-context cfc --cluster=cfc
 kubectl config set-credentials user --token=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
 kubectl config set-context cfc --user=user
 kubectl config use-context cfc
+
+/bin/sh

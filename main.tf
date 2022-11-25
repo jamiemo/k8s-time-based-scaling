@@ -236,7 +236,7 @@ resource "kubectl_manifest" "karpenter_provisioner" {
 
 # Deploying Deployment, Service and HPA
 data "kubectl_path_documents" "nginx_deployment" {
-  pattern = "${path.module}/nginx-deployment.yaml" 
+  pattern = "${path.module}/nginx-deployment.yaml"
 }
 
 resource "kubectl_manifest" "nginx_deployment" {
@@ -251,51 +251,13 @@ resource "kubectl_manifest" "nginx_deployment" {
 #---------------------------------------------------------------
 
 module "irsa" {
-    source = "github.com/aws-ia/terraform-aws-eks-blueprints//modules/irsa"
-    kubernetes_namespace       = "kubectl"
-    kubernetes_service_account = "kubectl-hpa"
-    irsa_iam_policies          = [aws_iam_policy.hpa_irsa_policy.arn]
-    eks_cluster_id             = module.eks_blueprints.eks_cluster_id
-    eks_oidc_provider_arn      = module.eks_blueprints.eks_oidc_provider_arn
+  source                     = "github.com/aws-ia/terraform-aws-eks-blueprints//modules/irsa"
+  kubernetes_namespace       = "nginx-demo"
+  kubernetes_service_account = "kubectl-hpa"
+  irsa_iam_policies          = [aws_iam_policy.hpa_irsa_policy.arn]
+  eks_cluster_id             = module.eks_blueprints.eks_cluster_id
+  eks_oidc_provider_arn      = module.eks_blueprints.eks_oidc_provider_arn
 }
-
-# resource "kubernetes_service_account" "hpa_irsa_service_account" {
-#   metadata {
-#     name = "hpa-irsa"
-#   }
-# }
-
-# resource "kubernetes_service_account_v1" "irsa" {
-#   count = var.create_kubernetes_service_account ? 1 : 0
-#   metadata {
-#     name        = var.kubernetes_service_account
-#     namespace   = try(kubernetes_namespace_v1.irsa[0].metadata[0].name, var.kubernetes_namespace)
-#     annotations = var.irsa_iam_policies != null ? { "eks.amazonaws.com/role-arn" : aws_iam_role.irsa[0].arn } : null
-#   }
-
-#   dynamic "image_pull_secret" {
-#     for_each = var.kubernetes_svc_image_pull_secrets != null ? var.kubernetes_svc_image_pull_secrets : []
-#     content {
-#       name = image_pull_secret.value
-#     }
-#   }
-
-#   automount_service_account_token = true
-# }
-
-# module "iam_eks_role" {
-#   source      = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
-#   role_name   = "${local.name}-hpa-irsa"
-#   create_role = true
-#   depends_on = [kubernetes_service_account.hpa_irsa_service_account]
-
-#   oidc_providers = {
-#     main = {
-#       provider_arn               = module.eks_blueprints.oidc_provider
-#       namespace_service_accounts = ["default:hpa-irsa"]
-#     }
-#   }
-# }
 
 resource "aws_iam_policy" "hpa_irsa_policy" {
   name        = "${local.name}-kubectl-hpa-irsa"
@@ -307,9 +269,9 @@ resource "aws_iam_policy" "hpa_irsa_policy" {
     Statement = [
       {
         Action = [
-                "eks:*"
-            ]
-        Effect = "Allow"
+          "eks:*"
+        ]
+        Effect   = "Allow"
         Resource = module.eks_blueprints.eks_cluster_arn
       },
     ]
@@ -318,23 +280,19 @@ resource "aws_iam_policy" "hpa_irsa_policy" {
 
 resource "kubernetes_cluster_role_binding" "hpa_irsa_clusterrole" {
   metadata {
-    name = "${local.name}-kubectl-hpa-irsa"
+    name      = "${local.name}-kubectl-hpa-irsa"
   }
   role_ref {
     api_group = "rbac.authorization.k8s.io"
     kind      = "ClusterRole"
-    name      = "cluster-admin"
+    name      = "${local.name}-kubectl-hpa-irsa"
   }
   subject {
     kind      = "ServiceAccount"
     name      = "kubectl-hpa"
-    namespace = "kubectl"
+    namespace = "nginx-demo"
   }
 }
-# resource "aws_iam_role_policy_attachment" "hpa_irsa_attach" {
-#   role       = "${local.name}-hpa-irsa"
-#   policy_arn = aws_iam_policy.hpa_irsa_policy.arn
-# }
 
 resource "aws_ecr_repository" "cluster_repo" {
   name                 = "kubectl"
@@ -342,6 +300,18 @@ resource "aws_ecr_repository" "cluster_repo" {
 
   image_scanning_configuration {
     scan_on_push = true
+  }
+}
+
+resource "kubernetes_cluster_role" "hpa_irsa_role" {
+  metadata {
+    name      = "${local.name}-kubectl-hpa-irsa"
+  }
+
+  rule {
+    api_groups = ["*"]
+    resources  = ["horizontalpodautoscalers"]
+    verbs      = ["get", "list", "watch", "patch"]
   }
 }
 

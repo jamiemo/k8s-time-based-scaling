@@ -1,43 +1,37 @@
 resource "kubernetes_deployment" "nginx_demo" {
   metadata {
     name = "nginx-demo"
+    namespace = "nginx-demo"
     labels = {
       app = "nginx-demo"
     }
   }
-
   spec {
     replicas = 2
-
     selector {
       match_labels = {
         app = "nginx-demo"
       }
     }
-
     template {
       metadata {
         labels = {
           app = "nginx-demo"
         }
       }
-
       spec {
         node_selector = {
           "type"        = "karpenter"
           "provisioner" = "default"
         }
-
         toleration {
           key      = "default"
           operator = "Exists"
           effect   = "NoSchedule"
         }
-
         container {
           image = "nginx:1.21.6"
           name  = "nginx-demo"
-
           resources {
             limits = {
               cpu    = "0.5"
@@ -48,13 +42,11 @@ resource "kubernetes_deployment" "nginx_demo" {
               memory = "50Mi"
             }
           }
-
           liveness_probe {
             http_get {
               path = "/"
               port = 80
             }
-
             initial_delay_seconds = 3
             period_seconds        = 3
           }
@@ -67,6 +59,7 @@ resource "kubernetes_deployment" "nginx_demo" {
 resource "kubernetes_service" "nginx_demo" {
   metadata {
     name = "nginx-demo"
+    namespace = "nginx-demo"
   }
   spec {
     selector = {
@@ -76,7 +69,6 @@ resource "kubernetes_service" "nginx_demo" {
       port        = 8080
       target_port = 80
     }
-
     type = "LoadBalancer"
   }
 }
@@ -84,18 +76,17 @@ resource "kubernetes_service" "nginx_demo" {
 resource "kubernetes_horizontal_pod_autoscaler" "nginx_demo" {
   metadata {
     name = "nginx-demo"
+    namespace = "nginx-demo"
   }
 
   spec {
     min_replicas = 2
     max_replicas = 20
-
     scale_target_ref {
       api_version = "apps/v1"
       kind        = "Deployment"
       name        = "nginx-demo"
     }
-
     metric {
       type = "Resource"
       resource {
