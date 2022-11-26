@@ -74,6 +74,13 @@ docker build -t <ECR repo URL> -t kubectl --build-arg aws_region=<region> --buil
 docker push <ECR repo URL>
 ```
 
+## Watch Deployment Scaling
+Watch the `minReplicas` being updated by the CronJob.
+ 
+```sh
+kubectl get hpa -n nginx-demo --watch
+```
+
 ## Generate Load
 If you want to generate some load, but not required for autoscaling.
 
@@ -98,4 +105,3 @@ terraform destroy -auto-approve
 
 # ToDo
 - Reduce permissions from eks:* in hpa_irsa_policy
-- Output aws ecr get-login-password command

@@ -9,4 +9,4 @@ kubectl config set-credentials user --token=$(cat /var/run/secrets/kubernetes.io
 kubectl config set-context cfc --user=user
 kubectl config use-context cfc
 
-while true; do sleep 1; done
+/bin/sh

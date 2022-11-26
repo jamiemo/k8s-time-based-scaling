@@ -7,3 +7,8 @@ output "cluster_repo" {
   description = "Cluster ECR URL to upload images."
   value       = aws_ecr_repository.cluster_repo.repository_url
 }
+
+output "ecr_authentication" {
+  description = "Cluster ECR authentication command for uploads."
+  value       = "aws ecr get-login-password --region ${local.region} | docker login --username AWS --password-stdin ${split("/", aws_ecr_repository.cluster_repo.repository_url)[0]}"
+}
