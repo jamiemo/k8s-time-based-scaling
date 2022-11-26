@@ -294,18 +294,27 @@ resource "kubernetes_cluster_role_binding" "hpa_irsa_clusterrole" {
   }
 }
 
-resource "aws_ecr_repository" "cluster_repo" {
-  name                 = "kubectl"
-  image_tag_mutability = "MUTABLE"
-
-  image_scanning_configuration {
-    scan_on_push = true
+resource "kubernetes_role_binding" "hpa_irsa_rolebinding" {
+  metadata {
+    name      = "${local.name}-kubectl-hpa-irsa"
+    namespace = "nginx-demo"
+  }
+  role_ref {
+    api_group = "rbac.authorization.k8s.io"
+    kind      = "Role"
+    name      = kubernetes_role.hpa_irsa_role.metadata[0].name
+  }
+  subject {
+    kind      = "ServiceAccount"
+    name      = "kubectl-hpa"
+    namespace = "nginx-demo"
   }
 }
 
-resource "kubernetes_cluster_role" "hpa_irsa_role" {
+resource "kubernetes_role" "hpa_irsa_role" {
   metadata {
     name      = "${local.name}-kubectl-hpa-irsa"
+    namespace = "nginx-demo"
   }
 
   rule {
@@ -353,6 +362,15 @@ module "vpc" {
   }
 
   tags = local.tags
+}
+
+resource "aws_ecr_repository" "cluster_repo" {
+  name                 = "kubectl"
+  image_tag_mutability = "MUTABLE"
+
+  image_scanning_configuration {
+    scan_on_push = true
+  }
 }
 
 data "aws_ami" "eks" {
