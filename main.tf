@@ -1,5 +1,5 @@
 provider "aws" {
-  region = local.region
+  alias = "region"
 }
 
 provider "kubernetes" {
@@ -45,19 +45,8 @@ data "aws_eks_cluster_auth" "this" {
 
 data "aws_availability_zones" "available" {}
 
-locals {
-  name   = basename(path.cwd)
-  region = "ap-southeast-2"
-
-  node_group_name = "managed-ondemand"
-
-  vpc_cidr = "10.0.0.0/16"
-  azs      = slice(data.aws_availability_zones.available.names, 0, 3)
-
-  tags = {
-    Blueprint  = local.name
-    GithubRepo = "github.com/aws-ia/terraform-aws-eks-blueprints"
-  }
+data "aws_region" "current" {
+    provider = aws.region
 }
 
 #---------------------------------------------------------------
@@ -260,7 +249,7 @@ module "irsa" {
 }
 
 resource "aws_iam_policy" "hpa_irsa_policy" {
-  name        = "${local.name}-kubectl-hpa-irsa"
+  name        = "${local.name}-kubectl-hpa-irsa-policy"
   path        = "/"
   description = "Allows IAM Roles for Service Accounts to use kubectl to set minReplicas for HPA"
 
@@ -278,26 +267,10 @@ resource "aws_iam_policy" "hpa_irsa_policy" {
   })
 }
 
-resource "kubernetes_cluster_role_binding" "hpa_irsa_clusterrole" {
-  metadata {
-    name      = "${local.name}-kubectl-hpa-irsa"
-  }
-  role_ref {
-    api_group = "rbac.authorization.k8s.io"
-    kind      = "ClusterRole"
-    name      = "cluster-admin"
-  }
-  subject {
-    kind      = "ServiceAccount"
-    name      = "kubectl-hpa"
-    namespace = "nginx-demo"
-  }
-}
-
 resource "kubernetes_role_binding" "hpa_irsa_rolebinding" {
   metadata {
-    name      = "${local.name}-kubectl-hpa-irsa"
-    namespace = "nginx-demo"
+    name      = "${local.name}-kubectl-hpa-irsa-rolebinding"
+    namespace = local.demo_namespace
   }
   role_ref {
     api_group = "rbac.authorization.k8s.io"
@@ -307,14 +280,14 @@ resource "kubernetes_role_binding" "hpa_irsa_rolebinding" {
   subject {
     kind      = "ServiceAccount"
     name      = "kubectl-hpa"
-    namespace = "nginx-demo"
+    namespace = local.demo_namespace
   }
 }
 
 resource "kubernetes_role" "hpa_irsa_role" {
   metadata {
-    name      = "${local.name}-kubectl-hpa-irsa"
-    namespace = "nginx-demo"
+    name      = "${local.name}-kubectl-hpa-irsa-role"
+    namespace = local.demo_namespace
   }
 
   rule {

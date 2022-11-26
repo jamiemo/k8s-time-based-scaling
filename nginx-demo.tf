@@ -1,9 +1,9 @@
 resource "kubernetes_deployment" "nginx_demo" {
   metadata {
-    name      = "nginx-demo"
-    namespace = "nginx-demo"
+    name      = local.demo_name
+    namespace = local.demo_namespace
     labels = {
-      app = "nginx-demo"
+      app = local.demo_name
     }
   }
   depends_on = [
@@ -14,13 +14,13 @@ resource "kubernetes_deployment" "nginx_demo" {
     replicas = 2
     selector {
       match_labels = {
-        app = "nginx-demo"
+        app = local.demo_name
       }
     }
     template {
       metadata {
         labels = {
-          app = "nginx-demo"
+          app = local.demo_name
         }
       }
       spec {
@@ -35,7 +35,7 @@ resource "kubernetes_deployment" "nginx_demo" {
         }
         container {
           image = "nginx:1.21.6"
-          name  = "nginx-demo"
+          name  = local.demo_name
           resources {
             limits = {
               cpu    = "0.5"
@@ -62,8 +62,8 @@ resource "kubernetes_deployment" "nginx_demo" {
 
 resource "kubernetes_service" "nginx_demo" {
   metadata {
-    name      = "nginx-demo"
-    namespace = "nginx-demo"
+    name      = local.demo_name
+    namespace = local.demo_namespace
   }
   spec {
     selector = {
@@ -79,8 +79,8 @@ resource "kubernetes_service" "nginx_demo" {
 
 resource "kubernetes_horizontal_pod_autoscaler" "nginx_demo" {
   metadata {
-    name      = "nginx-demo"
-    namespace = "nginx-demo"
+    name      = local.demo_name
+    namespace = local.demo_namespace
   }
 
   spec {
@@ -89,7 +89,7 @@ resource "kubernetes_horizontal_pod_autoscaler" "nginx_demo" {
     scale_target_ref {
       api_version = "apps/v1"
       kind        = "Deployment"
-      name        = "nginx-demo"
+      name        = local.demo_name
     }
     metric {
       type = "Resource"
