@@ -59,7 +59,7 @@ aws eks --region <region> update-kubeconfig --name <cluster-name>
 ```
 
 ## Build kubectl Image
-This will create a custom image with kubectl that authenticates using the IAM Roles for Service Accounts, which is then uploaded to ECR fo deployment in CronJobs. The ECR repo URL is in the Terraform output.
+This will create a custom image with kubectl that authenticates using the IAM Roles for Service Accounts, which is then uploaded to ECR for deployment in CronJobs. The ECR repo URL and authentication command are in the Terraform output.
 
 Authenticate to ECR. [Pushing a Docker image](https://docs.aws.amazon.com/AmazonECR/latest/userguide/docker-push-ecr-image.html).
 
