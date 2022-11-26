@@ -285,11 +285,11 @@ resource "kubernetes_cluster_role_binding" "hpa_irsa_clusterrole" {
   role_ref {
     api_group = "rbac.authorization.k8s.io"
     kind      = "ClusterRole"
-    name      = "${local.name}-kubectl-hpa-irsa"
+    name      = "cluster-admin"
   }
   subject {
     kind      = "ServiceAccount"
-    name      = "cluster-admin"
+    name      = "kubectl-hpa"
     namespace = "nginx-demo"
   }
 }
