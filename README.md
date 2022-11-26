@@ -78,7 +78,17 @@ docker push <ECR repo URL>
 Watch the `minReplicas` being updated by the CronJob.
  
 ```sh
-kubectl get hpa -n nginx-demo --watch
+kubectl get hpa -n nginx-demo --watch      
+NAME         REFERENCE               TARGETS         MINPODS   MAXPODS   REPLICAS   AGE
+nginx-demo   Deployment/nginx-demo   0%/50%          2         20        2          40m
+nginx-demo   Deployment/nginx-demo   0%/50%          10        20        2          40m
+nginx-demo   Deployment/nginx-demo   <unknown>/50%   10        20        2          40m
+nginx-demo   Deployment/nginx-demo   <unknown>/50%   10        20        10         40m
+nginx-demo   Deployment/nginx-demo   0%/50%          2         20        10         50m
+nginx-demo   Deployment/nginx-demo   0%/50%          2         20        2          50m
+nginx-demo   Deployment/nginx-demo   0%/50%          10        20        2          60m
+nginx-demo   Deployment/nginx-demo   <unknown>/50%   10        20        2          60m
+nginx-demo   Deployment/nginx-demo   0%/50%          10        20        10         60m
 ```
 
 ## Generate Load
