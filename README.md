@@ -98,3 +98,4 @@ terraform destroy -auto-approve
 
 # ToDo
 - Reduce permissions from eks:* in hpa_irsa_policy
+- Output aws ecr get-login-password command
