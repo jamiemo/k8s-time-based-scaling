@@ -7,8 +7,8 @@ resource "kubernetes_deployment" "nginx_demo" {
     }
   }
   depends_on = [
-    # nginx-demo Namespace
-    module.eks_blueprints.eks_cluster_id
+    module.eks_blueprints.eks_cluster_id,
+    module.eks_blueprints_kubernetes_addons
   ]
   spec {
     replicas = 2
@@ -86,7 +86,6 @@ resource "kubernetes_horizontal_pod_autoscaler" "nginx_demo" {
     name      = local.demo_name
     namespace = local.demo_namespace
   }
-
   spec {
     min_replicas = 2
     max_replicas = 20

@@ -223,13 +223,6 @@ resource "kubectl_manifest" "karpenter_provisioner" {
   depends_on = [module.eks_blueprints_kubernetes_addons]
 }
 
-resource "kubectl_manifest" "nginx_deployment" {
-  for_each  = toset(data.kubectl_path_documents.nginx_deployment.documents)
-  yaml_body = each.value
-
-  depends_on = [module.eks_blueprints_kubernetes_addons]
-}
-
 #---------------------------------------------------------------
 # IAM Roles for Service Accounts to set minReplicas for HPA
 #---------------------------------------------------------------
