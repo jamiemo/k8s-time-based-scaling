@@ -223,11 +223,6 @@ resource "kubectl_manifest" "karpenter_provisioner" {
   depends_on = [module.eks_blueprints_kubernetes_addons]
 }
 
-# Deploying Deployment, Service and HPA
-data "kubectl_path_documents" "nginx_deployment" {
-  pattern = "${path.module}/nginx-deployment.yaml"
-}
-
 resource "kubectl_manifest" "nginx_deployment" {
   for_each  = toset(data.kubectl_path_documents.nginx_deployment.documents)
   yaml_body = each.value
