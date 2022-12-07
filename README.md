@@ -58,6 +58,8 @@ This will allow kubectl to connect to the EKS cluster. The command is listed in 
 aws eks --region <region> update-kubeconfig --name <cluster-name>
 ```
 
+**Note:** If you plan to interact with your resources using the AWS CLI when using an MFA device, then you must create a (temporary session)[https://aws.amazon.com/premiumsupport/knowledge-center/authenticate-mfa-cli/].
+
 ## Build kubectl Image
 This will create a custom image with kubectl that authenticates using the IAM Roles for Service Accounts, which is then uploaded to ECR for deployment in CronJobs. The ECR repo URL and authentication command are in the Terraform output.
 
