@@ -12,7 +12,7 @@ resource "kubernetes_deployment" "nginx_demo" {
   ]
   spec {
     replicas = 2
-    progress_deadline_seconds = 1800
+    progress_deadline_seconds = 600
     selector {
       match_labels = {
         app = local.demo_name
@@ -74,7 +74,7 @@ resource "kubernetes_service" "nginx_demo" {
       app = kubernetes_deployment.nginx_demo.metadata.0.labels.app
     }
     port {
-      port        = 8080
+      port        = 80
       target_port = 80
     }
     type = "LoadBalancer"
