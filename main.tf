@@ -46,7 +46,7 @@ data "aws_eks_cluster_auth" "this" {
 data "aws_availability_zones" "available" {}
 
 data "aws_region" "current" {
-    provider = aws.region
+  provider = aws.region
 }
 
 #---------------------------------------------------------------
@@ -352,8 +352,4 @@ data "aws_ami" "bottlerocket" {
     name   = "name"
     values = ["bottlerocket-aws-k8s-${module.eks_blueprints.eks_cluster_version}-x86_64-*"]
   }
-}
-
-resource "aws_iam_service_linked_role" "ec2_spot_service" {
-  aws_service_name = "spot.amazonaws.com"
 }

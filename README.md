@@ -13,6 +13,19 @@ Ensure that you have installed the following tools in your Mac or Windows Laptop
 2. [kubectl](https://Kubernetes.io/docs/tasks/tools/)
 3. [terraform](https://learn.hashicorp.com/tutorials/terraform/install-cli)
 
+### AWSServiceRoleForEC2Spot
+Amazon EC2 uses the service-linked role named [AWSServiceRoleForEC2Spot](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/spot-requests.html#service-linked-roles-spot-instance-requests) to launch and manage Spot Instances on your behalf. This needs to be created in advance, as there can only be a single instance per account, and it is not easily managed with [Terraform](https://github.com/hashicorp/terraform/issues/23178).
+
+**Check for AWSServiceRoleForEC2Spot**
+```sh
+aws iam get-role --role-name AWSServiceRoleForEC2Spot
+```
+
+**Create AWSServiceRoleForEC2Spot**
+```sh
+aws iam create-service-linked-role --aws-service-name spot.amazonaws.com
+```
+
 ## Deployment Steps
 
 #### Step 1: Clone the repo using the command below

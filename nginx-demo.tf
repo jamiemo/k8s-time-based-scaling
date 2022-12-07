@@ -11,8 +11,8 @@ resource "kubernetes_deployment" "nginx_demo" {
     module.eks_blueprints_kubernetes_addons
   ]
   spec {
-    replicas = 2
-    progress_deadline_seconds = 600
+    replicas                  = 2
+    progress_deadline_seconds = 300
     selector {
       match_labels = {
         app = local.demo_name
