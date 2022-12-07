@@ -95,7 +95,7 @@ nginx-demo   Deployment/nginx-demo   0%/50%          10        20        10     
 If you want to generate some load, but not required for autoscaling.
 
 ```sh
-kubectl run -i --tty load-generator --rm --image=busybox:1.28 --restart=Never -- /bin/sh -c "while true; do wget -q -O- http://nginx-demo; done"
+kubectl run -i --tty load-generator --rm --image=busybox:1.28 --restart=Never -- /bin/sh -c "while true; do wget -q -O- http://nginx-demo.nginx-demo.svc.cluster.local:8080; done"
 ```
 
 ## Destroy the Kubernetes Add-ons, EKS cluster with Node groups and VPC
