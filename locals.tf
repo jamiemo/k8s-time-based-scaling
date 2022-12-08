@@ -12,6 +12,6 @@ locals {
     GithubRepo = "github.com/aws-ia/terraform-aws-eks-blueprints"
   }
 
-  demo_name = "nginx-demo"
-  demo_namespace= "nginx-demo"
+  demo_name      = "nginx-demo"
+  demo_namespace = "nginx-demo"
 }

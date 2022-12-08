@@ -4,8 +4,9 @@
 
 resource "kubernetes_cron_job" "nginx_scale_up" {
   metadata {
-    name = "nginx-scale-up"
-    namespace = local.demo_namespace
+    name      = "nginx-scale-up"
+    namespace = module.irsa.namespace
+
   }
   spec {
     concurrency_policy            = "Replace"
@@ -19,13 +20,17 @@ resource "kubernetes_cron_job" "nginx_scale_up" {
         backoff_limit              = 2
         ttl_seconds_after_finished = 300
         template {
-          metadata {}
+          metadata {
+            labels = {
+              component = "nginx-scale"
+            }
+          }
           spec {
             service_account_name = "kubectl-hpa"
             container {
               name    = "kubectl"
               image   = "${aws_ecr_repository.cluster_repo.repository_url}:latest"
-              command = ["/bin/sh", "-c", "$(which kubectl) patch hpa ${kubernetes_horizontal_pod_autoscaler.nginx_demo.metadata[0].name} -n nginx-demo -p '{\"spec\":{\"minReplicas\": 10}}'"]
+              command = ["/bin/sh", "-c", "kubectl patch hpa ${kubernetes_horizontal_pod_autoscaler.nginx_demo.metadata[0].name} -n nginx-demo -p '{\"spec\":{\"minReplicas\": 10}}'"]
             }
           }
         }
@@ -36,8 +41,8 @@ resource "kubernetes_cron_job" "nginx_scale_up" {
 
 resource "kubernetes_cron_job" "nginx_scale_down" {
   metadata {
-    name = "nginx-scale-down"
-    namespace = local.demo_namespace
+    name      = "nginx-scale-down"
+    namespace = module.irsa.namespace
   }
   spec {
     concurrency_policy            = "Replace"
@@ -51,13 +56,17 @@ resource "kubernetes_cron_job" "nginx_scale_down" {
         backoff_limit              = 2
         ttl_seconds_after_finished = 300
         template {
-          metadata {}
+          metadata {
+            labels = {
+              component = "nginx-scale"
+            }
+          }
           spec {
             service_account_name = "kubectl-hpa"
             container {
               name    = "kubectl"
               image   = "${aws_ecr_repository.cluster_repo.repository_url}:latest"
-              command = ["/bin/sh", "-c", "$(which kubectl) patch hpa ${kubernetes_horizontal_pod_autoscaler.nginx_demo.metadata[0].name} -n nginx-demo -p '{\"spec\":{\"minReplicas\": 2}}'"]
+              command = ["/bin/sh", "-c", "kubectl patch hpa ${kubernetes_horizontal_pod_autoscaler.nginx_demo.metadata[0].name} -n nginx-demo -p '{\"spec\":{\"minReplicas\": 2}}'"]
             }
           }
         }

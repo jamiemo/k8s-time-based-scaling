@@ -1,15 +1,11 @@
 resource "kubernetes_deployment" "nginx_demo" {
   metadata {
     name      = local.demo_name
-    namespace = local.demo_namespace
+    namespace = module.irsa.namespace
     labels = {
       app = local.demo_name
     }
   }
-  depends_on = [
-    module.eks_blueprints.eks_cluster_id,
-    module.eks_blueprints_kubernetes_addons
-  ]
   spec {
     replicas                  = 2
     progress_deadline_seconds = 300
@@ -59,15 +55,18 @@ resource "kubernetes_deployment" "nginx_demo" {
       }
     }
   }
+  depends_on = [
+    module.eks_blueprints_kubernetes_addons
+  ]
   timeouts {
-    create = "30m"
+    create = "5m"
   }
 }
 
 resource "kubernetes_service" "nginx_demo" {
   metadata {
     name      = local.demo_name
-    namespace = local.demo_namespace
+    namespace = module.irsa.namespace
   }
   spec {
     selector = {
@@ -84,7 +83,7 @@ resource "kubernetes_service" "nginx_demo" {
 resource "kubernetes_horizontal_pod_autoscaler" "nginx_demo" {
   metadata {
     name      = local.demo_name
-    namespace = local.demo_namespace
+    namespace = module.irsa.namespace
   }
   spec {
     min_replicas = 2

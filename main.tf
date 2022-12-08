@@ -121,7 +121,7 @@ module "eks_blueprints" {
   # Then rely on Karpenter to scale your workloads
   # You can also make uses on nodeSelector and Taints/tolerations to spread workloads on MNG or Karpenter provisioners
   managed_node_groups = {
-    mg_5 = {
+    managed_ondemand = {
       node_group_name = "managed-ondemand"
       instance_types  = ["t3.large"]
 
@@ -155,11 +155,14 @@ module "eks_blueprints_kubernetes_addons" {
   eks_cluster_version  = module.eks_blueprints.eks_cluster_version
 
   enable_amazon_eks_aws_ebs_csi_driver = true
+  enable_karpenter                     = true
+  enable_aws_node_termination_handler  = true
+  enable_kubecost                      = true
+  enable_metrics_server                = true
 
-  enable_karpenter                    = true
-  enable_aws_node_termination_handler = true
-  enable_kubecost                     = true
-  enable_metrics_server               = true
+  depends_on = [
+    module.eks_blueprints.managed_node_groups
+  ]
 
   tags = local.tags
 }
@@ -229,11 +232,17 @@ resource "kubectl_manifest" "karpenter_provisioner" {
 
 module "irsa" {
   source                     = "github.com/aws-ia/terraform-aws-eks-blueprints//modules/irsa"
-  kubernetes_namespace       = "nginx-demo"
+  kubernetes_namespace       = local.demo_namespace
   kubernetes_service_account = "kubectl-hpa"
   irsa_iam_policies          = [aws_iam_policy.hpa_irsa_policy.arn]
   eks_cluster_id             = module.eks_blueprints.eks_cluster_id
   eks_oidc_provider_arn      = module.eks_blueprints.eks_oidc_provider_arn
+
+  depends_on = [
+    module.eks_blueprints.managed_node_groups
+  ]
+
+  tags = local.tags
 }
 
 resource "aws_iam_policy" "hpa_irsa_policy" {
@@ -258,7 +267,7 @@ resource "aws_iam_policy" "hpa_irsa_policy" {
 resource "kubernetes_role_binding" "hpa_irsa_rolebinding" {
   metadata {
     name      = "${local.name}-kubectl-hpa-irsa-rolebinding"
-    namespace = local.demo_namespace
+    namespace = module.irsa.namespace
   }
   role_ref {
     api_group = "rbac.authorization.k8s.io"
@@ -268,14 +277,14 @@ resource "kubernetes_role_binding" "hpa_irsa_rolebinding" {
   subject {
     kind      = "ServiceAccount"
     name      = "kubectl-hpa"
-    namespace = local.demo_namespace
+    namespace = module.irsa.namespace
   }
 }
 
 resource "kubernetes_role" "hpa_irsa_role" {
   metadata {
     name      = "${local.name}-kubectl-hpa-irsa-role"
-    namespace = local.demo_namespace
+    namespace = module.irsa.namespace
   }
 
   rule {

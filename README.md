@@ -116,7 +116,23 @@ kubectl run -i --tty load-generator --rm --image=busybox:1.28 --restart=Never --
 ## Destroy the Kubernetes Add-ons, EKS cluster with Node groups and VPC
 Delete all of the images from the ECR repo, or it cannot be deleted.
 
+Delete the nginx-demo:
 ```sh
+kubectl delete deployment,service,hpa nginx-demo -n nginx-demo
+```
+
+Wait for all `karpenter.sh/provisioner-name/default` EC2 nodes to be terminated (~5 minutes).
+
+```sh
+kubectl get nodes -l type=karpenter
+No resources found
+```
+
+Destroy all resources:
+```sh
+terraform destroy
+
+terraform destroy -target="module.irsa" -auto-approve
 terraform destroy -target="module.eks_blueprints_kubernetes_addons" -auto-approve
 terraform destroy -target="module.eks_blueprints" -auto-approve
 terraform destroy -target="module.vpc" -auto-approve
@@ -126,6 +142,133 @@ Finally, destroy any additional resources that are not in the above modules
 
 ```sh
 terraform destroy -auto-approve
+```
+
+### Troubleshooting Failure to Destroy
+The `terraform destroy` may fail if there are resources remaining in the namespace. If the resources are not deleted from the namespace the destroy may fail because of [this issue](https://medium.com/@cristi.posoiu/this-is-not-the-right-way-especially-in-a-production-environment-190ff670bc62).
+
+```sh
+module.irsa.kubernetes_namespace_v1.irsa[0]: Still destroying... [id=nginx-demo, 14m0s elapsed]
+module.irsa.kubernetes_namespace_v1.irsa[0]: Still destroying... [id=nginx-demo, 14m10s elapsed]
+module.irsa.kubernetes_namespace_v1.irsa[0]: Still destroying... [id=nginx-demo, 14m20s elapsed]
+module.irsa.kubernetes_namespace_v1.irsa[0]: Still destroying... [id=nginx-demo, 14m30s elapsed]
+module.irsa.kubernetes_namespace_v1.irsa[0]: Still destroying... [id=nginx-demo, 14m40s elapsed]
+module.irsa.kubernetes_namespace_v1.irsa[0]: Still destroying... [id=nginx-demo, 14m50s elapsed]
+╷
+│ Error: context deadline exceeded
+│ 
+│ 
+╵
+```
+
+For example, CronJob pods in an error state:
+```sh
+kubectl get pods -l component=nginx-scale -n nginx-demo 
+NAME                            READY   STATUS   RESTARTS   AGE
+nginx-scale-up-27841320-58lzt   0/1     Error    0          82s
+nginx-scale-up-27841320-d2l7l   0/1     Error    0          96s
+nginx-scale-up-27841320-plnxh   0/1     Error    0          92s
+```
+Force delete the pods:
+```sh
+kubectl delete pod -l component=nginx-scale -n nginx-demo --grace-period=0 --force
+Warning: Immediate deletion does not wait for confirmation that the running resource has been terminated. The resource may continue to run on the cluster indefinitely.
+pod "nginx-scale-up-27841320-58lzt" force deleted
+pod "nginx-scale-up-27841320-d2l7l" force deleted
+pod "nginx-scale-up-27841320-plnxh" force deleted
+```
+
+You can check for details of the namespace such as a finalizer that prevents deletion, and a reason:
+```sh
+kubectl get namespace karpenter -o yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  creationTimestamp: "2022-12-08T06:39:25Z"
+  deletionTimestamp: "2022-12-08T06:48:26Z"
+  labels:
+    kubernetes.io/metadata.name: karpenter
+  name: karpenter
+  resourceVersion: "5561"
+  uid: 9271d80c-4e0c-4714-857d-2d7768d1d7e3
+spec:
+  **finalizers:
+  - kubernetes**
+status:
+  conditions:
+  - lastTransitionTime: "2022-12-08T06:48:32Z"
+    message: All resources successfully discovered
+    reason: ResourcesDiscovered
+    status: "False"
+    type: NamespaceDeletionDiscoveryFailure
+  - lastTransitionTime: "2022-12-08T06:48:32Z"
+    message: All legacy kube types successfully parsed
+    reason: ParsedGroupVersions
+    status: "False"
+    type: NamespaceDeletionGroupVersionParsingFailure
+  - lastTransitionTime: "2022-12-08T06:49:10Z"
+    message: **'Failed to delete all resource types, 1 remaining: unexpected items still
+      remain in namespace: karpenter for gvr: /v1, Resource=pods'**
+    reason: ContentDeletionFailed
+    status: "True"
+    type: NamespaceDeletionContentFailure
+  - lastTransitionTime: "2022-12-08T06:48:32Z"
+    message: **'Some resources are remaining: pods. has 2 resource instances'**
+    reason: SomeResourcesRemain
+    status: "True"
+    type: NamespaceContentRemaining
+  - lastTransitionTime: "2022-12-08T06:48:32Z"
+    message: All content-preserving finalizers finished
+    reason: ContentHasNoFinalizers
+    status: "False"
+    type: NamespaceFinalizersRemaining
+  phase: Terminating
+```
+
+Check for Karpenter pods in an terminating state:
+```sh
+kubectl get pods -l app.kubernetes.io/name=karpenter -n karpenter                 
+NAME                         READY   STATUS        RESTARTS   AGE
+karpenter-6794c9d58c-hs89m   1/1     Terminating   0          72m
+karpenter-6794c9d58c-rdt6x   1/1     Terminating   0          72m
+```
+Force delete the pods:
+```sh
+kubectl delete pod -l app.kubernetes.io/name=karpenter -n karpenter --grace-period=0 --force
+Warning: Immediate deletion does not wait for confirmation that the running resource has been terminated. The resource may continue to run on the cluster indefinitely.
+pod "karpenter-6794c9d58c-hs89m" force deleted
+pod "karpenter-6794c9d58c-rdt6x" force deleted
+```
+
+Check for kubecost pods in an terminating state:
+```sh
+kubectl get pods -l release=kubecost -n kubecost
+NAME                                          READY   STATUS        RESTARTS   AGE
+kubecost-prometheus-node-exporter-pb2vx       1/1     Terminating   0          18m
+kubecost-prometheus-node-exporter-vz2lw       1/1     Terminating   0          18m
+kubecost-prometheus-server-58d5cf79df-tslbv   2/2     Terminating   0          18m
+```
+Force delete the pods:
+```sh
+kubectl delete pod -l release=kubecost -n kubecost --grace-period=0 --force
+Warning: Immediate deletion does not wait for confirmation that the running resource has been terminated. The resource may continue to run on the cluster indefinitely.
+pod "kubecost-prometheus-node-exporter-pb2vx" force deleted
+pod "kubecost-prometheus-node-exporter-vz2lw" force deleted
+pod "kubecost-prometheus-server-58d5cf79df-tslbv" force deleted
+```
+Check for kubecost pods in an terminating state:
+```sh
+kubectl get pods -l app.kubernetes.io/instance=kubecost -n kubecost
+NAME                                           READY   STATUS        RESTARTS   AGE
+kubecost-cost-analyzer-7fc46777c4-xxnjt        2/2     Terminating   0          30m
+kubecost-kube-state-metrics-59fd4555f4-kjs88   1/1     Terminating   0          30m
+```
+Force delete the pods:
+```sh
+kubectl delete pod -l app.kubernetes.io/instance=kubecost -n kubecost --grace-period=0 --force
+Warning: Immediate deletion does not wait for confirmation that the running resource has been terminated. The resource may continue to run on the cluster indefinitely.
+pod "kubecost-cost-analyzer-7fc46777c4-xxnjt" force deleted
+pod "kubecost-kube-state-metrics-59fd4555f4-kjs88" force deleted
 ```
 
 # ToDo
