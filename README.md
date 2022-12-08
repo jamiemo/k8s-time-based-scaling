@@ -131,17 +131,6 @@ No resources found
 Destroy all resources:
 ```sh
 terraform destroy
-
-terraform destroy -target="module.irsa" -auto-approve
-terraform destroy -target="module.eks_blueprints_kubernetes_addons" -auto-approve
-terraform destroy -target="module.eks_blueprints" -auto-approve
-terraform destroy -target="module.vpc" -auto-approve
-```
-
-Finally, destroy any additional resources that are not in the above modules
-
-```sh
-terraform destroy -auto-approve
 ```
 
 ### Troubleshooting Failure to Destroy
