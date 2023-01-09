@@ -154,15 +154,34 @@ module "eks_blueprints_kubernetes_addons" {
   eks_oidc_provider    = module.eks_blueprints.oidc_provider
   eks_cluster_version  = module.eks_blueprints.eks_cluster_version
 
-  enable_amazon_eks_aws_ebs_csi_driver = true
-  enable_karpenter                     = true
-  enable_aws_node_termination_handler  = true
-  enable_kubecost                      = true
-  enable_metrics_server                = true
+  enable_amazon_eks_aws_ebs_csi_driver       = true
+  enable_karpenter                           = true
+  enable_kubecost                            = true
+  enable_metrics_server                      = true
 
+  karpenter_node_iam_instance_profile        = module.karpenter.instance_profile_name
+  karpenter_enable_spot_termination_handling = true
+  karpenter_sqs_queue_arn                    = module.karpenter.queue_arn
+  
   depends_on = [
     module.eks_blueprints.managed_node_groups
   ]
+
+  tags = local.tags
+}
+
+################################################################################
+# Karpenter
+################################################################################
+
+# Creates Karpenter native node termination handler resources and IAM instance profile
+module "karpenter" {
+  source  = "terraform-aws-modules/eks/aws//modules/karpenter"
+  version = "~> 19.5"
+
+  cluster_name           = module.eks_blueprints.eks_cluster_id
+  irsa_oidc_provider_arn = module.eks_blueprints.eks_oidc_provider_arn
+  create_irsa            = false # IRSA will be created by the kubernetes-addons module
 
   tags = local.tags
 }
