@@ -109,8 +109,27 @@ module "eks_blueprints" {
       type                          = "ingress"
       source_cluster_security_group = true
     }
+
+    ingress_allow_alb_webhook_access_from_control_plane = {
+      description                   = "Allow access from control plane to webhook port of AWS load balancer controller"
+      protocol                      = "tcp"
+      from_port                     = 9443
+      to_port                       = 9443
+      type                          = "ingress"
+      source_cluster_security_group = true
+    }
   }
 
+  cluster_security_group_additional_rules = {
+    ingress_nodes_karpenter_ports_tcp = {
+      description                = "Karpenter readiness"
+      protocol                   = "tcp"
+      from_port                  = 8443
+      to_port                    = 8443
+      type                       = "ingress"
+      source_node_security_group = true
+    }
+  }
   # Add karpenter.sh/discovery tag so that we can use this as securityGroupSelector in karpenter provisioner
   node_security_group_tags = {
     "karpenter.sh/discovery/${local.name}" = local.name
@@ -154,15 +173,15 @@ module "eks_blueprints_kubernetes_addons" {
   eks_oidc_provider    = module.eks_blueprints.oidc_provider
   eks_cluster_version  = module.eks_blueprints.eks_cluster_version
 
-  enable_amazon_eks_aws_ebs_csi_driver       = true
-  enable_karpenter                           = true
-  enable_kubecost                            = true
-  enable_metrics_server                      = true
+  enable_amazon_eks_aws_ebs_csi_driver = true
+  enable_karpenter                     = true
+  enable_kubecost                      = true
+  enable_metrics_server                = true
 
   karpenter_node_iam_instance_profile        = module.karpenter.instance_profile_name
   karpenter_enable_spot_termination_handling = true
   karpenter_sqs_queue_arn                    = module.karpenter.queue_arn
-  
+
   depends_on = [
     module.eks_blueprints.managed_node_groups
   ]
