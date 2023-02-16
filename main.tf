@@ -54,7 +54,7 @@ data "aws_region" "current" {
 #---------------------------------------------------------------
 
 module "eks_blueprints" {
-  source = "github.com/aws-ia/terraform-aws-eks-blueprints"
+  source = "github.com/aws-ia/terraform-aws-eks-blueprints?ref=v4.24.0"
 
   cluster_name    = local.name
   cluster_version = "1.23"
@@ -166,7 +166,7 @@ module "eks_blueprints" {
 }
 
 module "eks_blueprints_kubernetes_addons" {
-  source = "github.com/aws-ia/terraform-aws-eks-blueprints/modules/kubernetes-addons"
+  source = "github.com/aws-ia/terraform-aws-eks-blueprints//modules/kubernetes-addons?ref=v4.24.0"
 
   eks_cluster_id       = module.eks_blueprints.eks_cluster_id
   eks_cluster_endpoint = module.eks_blueprints.eks_cluster_endpoint
@@ -208,7 +208,7 @@ module "karpenter" {
 # Creates Launch templates for Karpenter
 # Launch template outputs will be used in Karpenter Provisioners yaml files. Checkout this examples/karpenter/provisioners/default_provisioner_with_launch_templates.yaml
 module "karpenter_launch_templates" {
-  source = "github.com/aws-ia/terraform-aws-eks-blueprints/modules/launch-templates"
+  source = "github.com/aws-ia/terraform-aws-eks-blueprints//modules/launch-templates?ref=v4.24.0"
 
   eks_cluster_id = module.eks_blueprints.eks_cluster_id
 
@@ -269,7 +269,7 @@ resource "kubectl_manifest" "karpenter_provisioner" {
 #---------------------------------------------------------------
 
 module "irsa" {
-  source                     = "github.com/aws-ia/terraform-aws-eks-blueprints//modules/irsa"
+  source                     = "github.com/aws-ia/terraform-aws-eks-blueprints//modules/irsa?ref=v4.24.0"
   kubernetes_namespace       = local.demo_namespace
   kubernetes_service_account = "kubectl-hpa"
   irsa_iam_policies          = [aws_iam_policy.hpa_irsa_policy.arn]
@@ -302,15 +302,14 @@ resource "aws_iam_policy" "hpa_irsa_policy" {
   })
 }
 
-resource "kubernetes_role_binding" "hpa_irsa_rolebinding" {
+resource "kubernetes_cluster_role_binding" "hpa_irsa_rolebinding" {
   metadata {
     name      = "${local.name}-kubectl-hpa-irsa-rolebinding"
-    namespace = module.irsa.namespace
   }
   role_ref {
     api_group = "rbac.authorization.k8s.io"
-    kind      = "Role"
-    name      = kubernetes_role.hpa_irsa_role.metadata[0].name
+    kind      = "ClusterRole"
+    name      = kubernetes_cluster_role.hpa_irsa_role.metadata[0].name
   }
   subject {
     kind      = "ServiceAccount"
@@ -319,10 +318,9 @@ resource "kubernetes_role_binding" "hpa_irsa_rolebinding" {
   }
 }
 
-resource "kubernetes_role" "hpa_irsa_role" {
+resource "kubernetes_cluster_role" "hpa_irsa_role" {
   metadata {
     name      = "${local.name}-kubectl-hpa-irsa-role"
-    namespace = module.irsa.namespace
   }
 
   rule {
