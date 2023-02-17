@@ -6,7 +6,6 @@ resource "kubernetes_cron_job" "nginx_scale_up" {
   metadata {
     name      = "nginx-scale-up"
     namespace = module.irsa.namespace
-
   }
   spec {
     concurrency_policy            = "Replace"
@@ -30,11 +29,11 @@ resource "kubernetes_cron_job" "nginx_scale_up" {
             container {
               name    = "kubectl"
               env {
-                name = AWS_REGION
+                name = "AWS_REGION"
                 value = "${local.region}"
               }
               env {
-                name = CLUSTER_NAME
+                name = "CLUSTER_NAME"
                 value = "${local.name}"
               }
               image   = "${aws_ecr_repository.cluster_repo.repository_url}:latest"
@@ -74,11 +73,11 @@ resource "kubernetes_cron_job" "nginx_scale_down" {
             container {
               name    = "kubectl"
               env {
-                name = AWS_REGION
+                name = "AWS_REGION"
                 value = "${local.region}"
               }
               env {
-                name = CLUSTER_NAME
+                name = "CLUSTER_NAME"
                 value = "${local.name}"
               }
               image   = "${aws_ecr_repository.cluster_repo.repository_url}:latest"
