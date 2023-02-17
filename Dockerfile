@@ -1,9 +1,5 @@
+# Expects the environment variables AWS_REGION and CLUSTER_NAME to be passed to the container on deployment
 FROM alpine:latest
-
-ARG aws_region
-ARG cluster_name
-ENV AWS_REGION=${aws_region}
-ENV CLUSTER_NAME=${cluster_name}
 
 # Install packages
 RUN apk update && apk add --update --no-cache curl unzip python3 py3-pip

@@ -261,6 +261,5 @@ pod "kubecost-kube-state-metrics-59fd4555f4-kjs88" force deleted
 ```
 
 # ToDo
-- Reduce permissions from eks:* in hpa_irsa_policy
 - [Update the aws-node daemonset to use IRSA](https://aws.github.io/aws-eks-best-practices/security/docs/iam/#update-the-aws-node-daemonset-to-use-irsa)
 - [Enable Amazon Inspector for ec2 and ecr](https://aws.github.io/aws-eks-best-practices/security/docs/network/#log-network-traffic-metadata)

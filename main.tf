@@ -293,7 +293,24 @@ resource "aws_iam_policy" "hpa_irsa_policy" {
     Statement = [
       {
         Action = [
-          "eks:*"
+          "eks:ListNodegroups",
+          "eks:DescribeFargateProfile",
+          "eks:DescribeAddonConfiguration",
+          "eks:UntagResource",
+          "eks:ListTagsForResource",
+          "eks:ListAddons",
+          "eks:DescribeAddon",
+          "eks:ListFargateProfiles",
+          "eks:DescribeNodegroup",
+          "eks:DescribeIdentityProviderConfig",
+          "eks:ListUpdates",
+          "eks:DescribeUpdate",
+          "eks:TagResource",
+          "eks:AccessKubernetesApi",
+          "eks:DescribeCluster",
+          "eks:ListClusters",
+          "eks:DescribeAddonVersions",
+          "eks:ListIdentityProviderConfigs"          
         ]
         Effect   = "Allow"
         Resource = module.eks_blueprints.eks_cluster_arn
