@@ -1,4 +1,3 @@
-# Expects the environment variables AWS_REGION and CLUSTER_NAME to be passed to the container on deployment
 FROM alpine:latest
 
 # Install packages

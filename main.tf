@@ -152,6 +152,10 @@ module "eks_blueprints" {
         max_unavailable_percentage = 30
       }]
 
+      k8s_labels = {
+        loadtype = "baseload"
+      }
+
       # Launch template configuration
       create_launch_template = true              # false will use the default launch template
       launch_template_os     = "amazonlinux2eks" # amazonlinux2eks or bottlerocket
@@ -181,6 +185,23 @@ module "eks_blueprints_kubernetes_addons" {
   karpenter_node_iam_instance_profile        = module.karpenter.instance_profile_name
   karpenter_enable_spot_termination_handling = true
   karpenter_sqs_queue_arn                    = module.karpenter.queue_arn
+
+  karpenter_helm_config = {
+    # Collection merge does not work as expected
+    # https://github.com/hashicorp/terraform/issues/24236
+    values = [
+      <<-EOT
+          settings:
+            aws:
+              clusterName: ${module.eks_blueprints.eks_cluster_id}
+              clusterEndpoint: ${module.eks_blueprints.eks_cluster_endpoint}
+              defaultInstanceProfile: ${module.karpenter.instance_profile_name}
+              interruptionQueueName: ${module.karpenter.queue_arn}
+          nodeSelector:
+            loadtype: baseload
+        EOT
+    ]
+  }
 
   depends_on = [
     module.eks_blueprints.managed_node_groups
@@ -310,7 +331,7 @@ resource "aws_iam_policy" "hpa_irsa_policy" {
           "eks:DescribeCluster",
           "eks:ListClusters",
           "eks:DescribeAddonVersions",
-          "eks:ListIdentityProviderConfigs"          
+          "eks:ListIdentityProviderConfigs"
         ]
         Effect   = "Allow"
         Resource = module.eks_blueprints.eks_cluster_arn
@@ -321,7 +342,7 @@ resource "aws_iam_policy" "hpa_irsa_policy" {
 
 resource "kubernetes_cluster_role_binding" "hpa_irsa_rolebinding" {
   metadata {
-    name      = "${local.name}-kubectl-hpa-irsa-rolebinding"
+    name = "${local.name}-kubectl-hpa-irsa-rolebinding"
   }
   role_ref {
     api_group = "rbac.authorization.k8s.io"
@@ -337,7 +358,7 @@ resource "kubernetes_cluster_role_binding" "hpa_irsa_rolebinding" {
 
 resource "kubernetes_cluster_role" "hpa_irsa_role" {
   metadata {
-    name      = "${local.name}-kubectl-hpa-irsa-role"
+    name = "${local.name}-kubectl-hpa-irsa-role"
   }
 
   rule {
