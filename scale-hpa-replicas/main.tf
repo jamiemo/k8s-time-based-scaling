@@ -1,7 +1,7 @@
 resource "kubernetes_cron_job" "scale_min_replicas" {
   metadata {
     name      = var.name
-    namespace = var.namespace
+    namespace = var.service-account-namespace
   }
   spec {
     concurrency_policy            = "Replace"
@@ -22,7 +22,7 @@ resource "kubernetes_cron_job" "scale_min_replicas" {
             container {
               name    = "kubectl"
               image   = "${var.kubectl-repo}:latest"
-              command = ["/bin/sh", "-c", "kubectl patch hpa ${var.horizontal-pod-autoscaler-name} -n ${var.namespace} -p '{\"spec\":{\"minReplicas\": ${var.min-replicas}}}'"]
+              command = ["/bin/sh", "-c", "kubectl patch hpa ${var.horizontal-pod-autoscaler-name} -n ${var.horizontal-pod-autoscaler-namespace} -p '{\"spec\":{\"minReplicas\": ${var.min-replicas}}}'"]
             }
           }
         }

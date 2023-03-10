@@ -291,7 +291,7 @@ resource "kubectl_manifest" "karpenter_provisioner" {
 
 module "irsa" {
   source                     = "github.com/aws-ia/terraform-aws-eks-blueprints//modules/irsa?ref=v4.24.0"
-  kubernetes_namespace       = local.demo_namespace
+  kubernetes_namespace       = "kubectl"
   kubernetes_service_account = "kubectl-hpa"
   irsa_iam_policies          = [aws_iam_policy.hpa_irsa_policy.arn]
   eks_cluster_id             = module.eks_blueprints.eks_cluster_id

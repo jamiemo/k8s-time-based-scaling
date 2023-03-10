@@ -4,7 +4,7 @@ variable name {
 variable horizontal-pod-autoscaler-name {
     type = string
 }
-variable namespace {
+variable horizontal-pod-autoscaler-namespace {
     type = string
 }
 variable schedule {
@@ -17,5 +17,8 @@ variable kubectl-repo {
     type = string
 }
 variable service-account-name {
+    type = string
+}
+variable service-account-namespace {
     type = string
 }

@@ -1,7 +1,13 @@
+resource "kubernetes_namespace" "nginx-demo" {
+  metadata {
+    name      = local.demo_namespace
+  } 
+}
+
 resource "kubernetes_deployment" "nginx_demo" {
   metadata {
     name      = local.demo_name
-    namespace = module.irsa.namespace
+    namespace = kubernetes_namespace.nginx-demo.metadata[0].name
     labels = {
       app = local.demo_name
     }
@@ -66,7 +72,7 @@ resource "kubernetes_deployment" "nginx_demo" {
 resource "kubernetes_service" "nginx_demo" {
   metadata {
     name      = local.demo_name
-    namespace = module.irsa.namespace
+    namespace = kubernetes_namespace.nginx-demo.metadata[0].name
   }
   spec {
     selector = {
@@ -83,7 +89,7 @@ resource "kubernetes_service" "nginx_demo" {
 resource "kubernetes_horizontal_pod_autoscaler" "nginx_demo" {
   metadata {
     name      = local.demo_name
-    namespace = module.irsa.namespace
+    namespace = kubernetes_namespace.nginx-demo.metadata[0].name
   }
   spec {
     min_replicas = 2
