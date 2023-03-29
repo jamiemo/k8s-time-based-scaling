@@ -29,10 +29,10 @@ resource "kubernetes_deployment" "nginx_demo" {
       spec {
         node_selector = {
           "type"        = "karpenter"
-          "provisioner" = "default"
+          "provisioner" = "default-lt"
         }
         toleration {
-          key      = "default"
+          key      = "default-lt"
           operator = "Exists"
           effect   = "NoSchedule"
         }
