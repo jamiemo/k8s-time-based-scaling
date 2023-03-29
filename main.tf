@@ -187,6 +187,8 @@ module "eks_blueprints_kubernetes_addons" {
   karpenter_sqs_queue_arn                    = module.karpenter.queue_arn
 
   karpenter_helm_config = {
+    namespace        = kubernetes_namespace.karpenter.metadata[0].name
+    create_namespace = false
     # Collection merge does not work as expected
     # https://github.com/hashicorp/terraform/issues/24236
     values = [
@@ -290,13 +292,23 @@ resource "kubectl_manifest" "karpenter_provisioner" {
 # IAM Roles for Service Accounts to set minReplicas for HPA
 #---------------------------------------------------------------
 
+resource "kubernetes_namespace" "karpenter" {
+  metadata {
+    name = "karpenter"
+    labels = {
+      "app.kubernetes.io/managed-by" = "Terraform"
+    }
+  }
+}
+
 module "irsa" {
-  source                     = "github.com/aws-ia/terraform-aws-eks-blueprints//modules/irsa?ref=v4.24.0"
-  kubernetes_namespace       = "kubectl"
-  kubernetes_service_account = "kubectl-hpa"
-  irsa_iam_policies          = [aws_iam_policy.hpa_irsa_policy.arn]
-  eks_cluster_id             = module.eks_blueprints.eks_cluster_id
-  eks_oidc_provider_arn      = module.eks_blueprints.eks_oidc_provider_arn
+  source                      = "github.com/aws-ia/terraform-aws-eks-blueprints//modules/irsa?ref=v4.24.0"
+  kubernetes_namespace        = kubernetes_namespace.karpenter.metadata[0].name
+  create_kubernetes_namespace = false
+  kubernetes_service_account  = "kubectl-hpa"
+  irsa_iam_policies           = [aws_iam_policy.hpa_irsa_policy.arn]
+  eks_cluster_id              = module.eks_blueprints.eks_cluster_id
+  eks_oidc_provider_arn       = module.eks_blueprints.eks_oidc_provider_arn
 
   depends_on = [
     module.eks_blueprints.managed_node_groups
