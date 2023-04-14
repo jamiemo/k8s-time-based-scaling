@@ -3,6 +3,8 @@ kind: Provisioner
 metadata:
   name: default
 spec:
+  consolidation:
+    enabled: true
   requirements:
     - key: "topology.kubernetes.io/zone"
       operator: In
@@ -26,4 +28,3 @@ spec:
     - key: default
       value: 'true'
       effect: NoSchedule
-  ttlSecondsAfterEmpty: 120
