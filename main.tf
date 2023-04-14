@@ -462,27 +462,3 @@ data "aws_ami" "bottlerocket" {
     values = ["bottlerocket-aws-k8s-${module.eks_blueprints.eks_cluster_version}-x86_64-*"]
   }
 }
-
-# Use gp3 as default storage class for persistent volumes
-resource "kubernetes_storage_class" "gp3" {
-  metadata {
-    name = "gp3"
-    annotations = {
-      "storageclass.kubernetes.io/is-default-class" = "true"
-    }
-  }
-  storage_provisioner = "kubernetes.io/aws-ebs"
-  volume_binding_mode = "WaitForFirstConsumer"
-  parameters = {
-    type      = "gp3"
-    fsType    = "ext4"
-    encrypted = "true"
-  }
-}
-
-# Remove gp2 as default storage class
-resource "null_resource" "storge_patch" {
-  provisioner "local-exec" {
-    command = "kubectl annotate sc gp2 storageclass.kubernetes.io/is-default-class-"
-  }
-}
