@@ -216,6 +216,15 @@ module "eks_blueprints_kubernetes_addons" {
 # Karpenter
 ################################################################################
 
+resource "kubernetes_namespace" "karpenter" {
+  metadata {
+    name = "karpenter"
+    labels = {
+      "app.kubernetes.io/managed-by" = "Terraform"
+    }
+  }
+}
+
 # Creates Karpenter native node termination handler resources and IAM instance profile
 module "karpenter" {
   source  = "terraform-aws-modules/eks/aws//modules/karpenter"
@@ -244,9 +253,11 @@ module "karpenter_launch_templates" {
       vpc_security_group_ids = [module.eks_blueprints.worker_node_security_group_id]
       block_device_mappings = [
         {
-          device_name = "/dev/xvda"
-          volume_type = "gp3"
-          volume_size = 200
+          device_name           = "/dev/xvda"
+          volume_type           = "gp3"
+          volume_size           = 200
+          encrypted             = true
+          delete_on_termination = true
         }
       ]
     }
@@ -259,9 +270,11 @@ module "karpenter_launch_templates" {
       vpc_security_group_ids = [module.eks_blueprints.worker_node_security_group_id]
       block_device_mappings = [
         {
-          device_name = "/dev/xvda"
-          volume_type = "gp3"
-          volume_size = 200
+          device_name           = "/dev/xvda"
+          volume_type           = "gp3"
+          volume_size           = 200
+          encrypted             = true
+          delete_on_termination = true
         }
       ]
     }
@@ -292,9 +305,9 @@ resource "kubectl_manifest" "karpenter_provisioner" {
 # IAM Roles for Service Accounts to set minReplicas for HPA
 #---------------------------------------------------------------
 
-resource "kubernetes_namespace" "karpenter" {
+resource "kubernetes_namespace" "kubectl" {
   metadata {
-    name = "karpenter"
+    name = "kubectl"
     labels = {
       "app.kubernetes.io/managed-by" = "Terraform"
     }
@@ -303,7 +316,7 @@ resource "kubernetes_namespace" "karpenter" {
 
 module "irsa" {
   source                      = "github.com/aws-ia/terraform-aws-eks-blueprints//modules/irsa?ref=v4.24.0"
-  kubernetes_namespace        = kubernetes_namespace.karpenter.metadata[0].name
+  kubernetes_namespace        = kubernetes_namespace.kubectl.metadata[0].name
   create_kubernetes_namespace = false
   kubernetes_service_account  = "kubectl-hpa"
   irsa_iam_policies           = [aws_iam_policy.hpa_irsa_policy.arn]
@@ -447,5 +460,29 @@ data "aws_ami" "bottlerocket" {
   filter {
     name   = "name"
     values = ["bottlerocket-aws-k8s-${module.eks_blueprints.eks_cluster_version}-x86_64-*"]
+  }
+}
+
+# Use gp3 as default storage class for persistent volumes
+resource "kubernetes_storage_class" "gp3" {
+  metadata {
+    name = "gp3"
+    annotations = {
+      "storageclass.kubernetes.io/is-default-class" = "true"
+    }
+  }
+  storage_provisioner = "kubernetes.io/aws-ebs"
+  volume_binding_mode = "WaitForFirstConsumer"
+  parameters = {
+    type      = "gp3"
+    fsType    = "ext4"
+    encrypted = "true"
+  }
+}
+
+# Remove gp2 as default storage class
+resource "null_resource" "storge_patch" {
+  provisioner "local-exec" {
+    command = "kubectl annotate sc gp2 storageclass.kubernetes.io/is-default-class-"
   }
 }
