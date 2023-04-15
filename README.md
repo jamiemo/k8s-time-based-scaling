@@ -152,7 +152,7 @@ module.irsa.kubernetes_namespace_v1.irsa[0]: Still destroying... [id=nginx-demo,
 
 For example, CronJob pods in an error state:
 ```sh
-kubectl get pods -l component=nginx-scale -n nginx-demo 
+kubectl get pods -l component=nginx-scale -n kubectl
 NAME                            READY   STATUS   RESTARTS   AGE
 nginx-scale-up-27841320-58lzt   0/1     Error    0          82s
 nginx-scale-up-27841320-d2l7l   0/1     Error    0          96s
@@ -160,7 +160,7 @@ nginx-scale-up-27841320-plnxh   0/1     Error    0          92s
 ```
 Force delete the pods:
 ```sh
-kubectl delete pod -l component=nginx-scale -n nginx-demo --grace-period=0 --force
+kubectl delete pod -l component=nginx-scale -n kubectl --grace-period=0 --force
 Warning: Immediate deletion does not wait for confirmation that the running resource has been terminated. The resource may continue to run on the cluster indefinitely.
 pod "nginx-scale-up-27841320-58lzt" force deleted
 pod "nginx-scale-up-27841320-d2l7l" force deleted
