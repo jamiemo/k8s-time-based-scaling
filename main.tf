@@ -178,6 +178,8 @@ module "eks_blueprints_kubernetes_addons" {
   eks_cluster_version  = module.eks_blueprints.eks_cluster_version
 
   enable_amazon_eks_aws_ebs_csi_driver = true
+  enable_aws_efs_csi_driver            = true
+  aws_efs_csi_driver_irsa_policies     = [module.efs_csi_tag_policy.arn]
   enable_karpenter                     = true
   enable_kubecost                      = true
   enable_metrics_server                = true
@@ -498,4 +500,75 @@ resource "kubernetes_annotations" "gp2" {
   depends_on = [
     kubernetes_storage_class.gp3
   ]
+}
+
+# EFS storage class for persistent volumes
+resource "kubernetes_storage_class_v1" "efs" {
+  metadata {
+    name = "efs"
+  }
+
+  storage_provisioner = "efs.csi.aws.com"
+  parameters = {
+    provisioningMode = "efs-ap" # Dynamic provisioning
+    fileSystemId     = module.efs.id
+    directoryPerms   = "700"
+  }
+
+  mount_options = [
+    "iam"
+  ]
+
+  depends_on = [
+    module.eks_blueprints_kubernetes_addons
+  ]
+}
+
+module "efs" {
+  source  = "terraform-aws-modules/efs/aws"
+  version = "~> 1.0"
+
+  creation_token = local.name
+  name           = local.name
+
+  # Mount targets / security group
+  mount_targets = {
+    for k, v in zipmap(local.azs, module.vpc.private_subnets) : k => { subnet_id = v }
+  }
+  security_group_description = "${local.name} EFS security group"
+  security_group_vpc_id      = module.vpc.vpc_id
+  security_group_rules = {
+    vpc = {
+      # relying on the defaults provdied for EFS/NFS (2049/TCP + ingress)
+      description = "NFS ingress from VPC private subnets"
+      cidr_blocks = module.vpc.private_subnets_cidr_blocks
+    }
+  }
+
+  tags = local.tags
+}
+
+module "efs_csi_tag_policy" {
+  source = "terraform-aws-modules/iam/aws//modules/iam-policy"
+
+  name = "AllowTagResource"
+  path = "/"
+
+  policy = <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Action": "elasticfilesystem:TagResource",
+      "Condition": {
+          "StringLike": {
+              "aws:RequestTag/efs.csi.aws.com/cluster": "true"
+          }
+      },
+      "Effect": "Allow",
+      "Resource": "${module.efs.arn}"
+    }
+  ]
+}
+EOF
 }
