@@ -214,50 +214,9 @@ status:
   phase: Terminating
 ```
 
-Check for Karpenter pods in an terminating state:
+Force delete all pods in an terminating state:
 ```sh
-kubectl get pods -l app.kubernetes.io/name=karpenter -n karpenter                 
-NAME                         READY   STATUS        RESTARTS   AGE
-karpenter-6794c9d58c-hs89m   1/1     Terminating   0          72m
-karpenter-6794c9d58c-rdt6x   1/1     Terminating   0          72m
-```
-Force delete the pods:
-```sh
-kubectl delete pod -l app.kubernetes.io/name=karpenter -n karpenter --grace-period=0 --force
-Warning: Immediate deletion does not wait for confirmation that the running resource has been terminated. The resource may continue to run on the cluster indefinitely.
-pod "karpenter-6794c9d58c-hs89m" force deleted
-pod "karpenter-6794c9d58c-rdt6x" force deleted
-```
-
-Check for kubecost pods in an terminating state:
-```sh
-kubectl get pods -l release=kubecost -n kubecost
-NAME                                          READY   STATUS        RESTARTS   AGE
-kubecost-prometheus-node-exporter-pb2vx       1/1     Terminating   0          18m
-kubecost-prometheus-node-exporter-vz2lw       1/1     Terminating   0          18m
-kubecost-prometheus-server-58d5cf79df-tslbv   2/2     Terminating   0          18m
-```
-Force delete the pods:
-```sh
-kubectl delete pod -l release=kubecost -n kubecost --grace-period=0 --force
-Warning: Immediate deletion does not wait for confirmation that the running resource has been terminated. The resource may continue to run on the cluster indefinitely.
-pod "kubecost-prometheus-node-exporter-pb2vx" force deleted
-pod "kubecost-prometheus-node-exporter-vz2lw" force deleted
-pod "kubecost-prometheus-server-58d5cf79df-tslbv" force deleted
-```
-Check for kubecost pods in an terminating state:
-```sh
-kubectl get pods -l app.kubernetes.io/instance=kubecost -n kubecost
-NAME                                           READY   STATUS        RESTARTS   AGE
-kubecost-cost-analyzer-7fc46777c4-xxnjt        2/2     Terminating   0          30m
-kubecost-kube-state-metrics-59fd4555f4-kjs88   1/1     Terminating   0          30m
-```
-Force delete the pods:
-```sh
-kubectl delete pod -l app.kubernetes.io/instance=kubecost -n kubecost --grace-period=0 --force
-Warning: Immediate deletion does not wait for confirmation that the running resource has been terminated. The resource may continue to run on the cluster indefinitely.
-pod "kubecost-cost-analyzer-7fc46777c4-xxnjt" force deleted
-pod "kubecost-kube-state-metrics-59fd4555f4-kjs88" force deleted
+for i in `kubectl get pods -A --no-headers | grep -i terminating | awk '{ print $2 ":" $1 }'`; do; POD=$(echo $i | cut -d ":" -f 1); NAMESPACE=$(echo $i | cut -d ":" -f 2); kubectl delete pods $POD -n $NAMESPACE --grace-period=0 --force; done
 ```
 
 # ToDo

@@ -481,24 +481,21 @@ resource "kubernetes_storage_class" "gp3" {
 }
 
 # Remove gp2 as default storage class
-resource "kubectl_manifest" "gp2_storage_class" {
+resource "kubernetes_annotations" "gp2" {
+  api_version = "storage.k8s.io/v1"
+  kind        = "StorageClass"
+  force       = "true"
+
+  metadata {
+    name = "gp2"
+  }
+
+  annotations = {
+    # Modify annotations to remove gp2 as default storage class still reatain the class
+    "storageclass.kubernetes.io/is-default-class" = "false"
+  }
+
   depends_on = [
     kubernetes_storage_class.gp3
   ]
-  yaml_body = <<YAML
-apiVersion: storage.k8s.io/v1
-kind: StorageClass
-metadata:
-  annotations:
-    kubectl.kubernetes.io/last-applied-configuration: |
-      {"apiVersion":"storage.k8s.io/v1","kind":"StorageClass","metadata":{"annotations":{"storageclass.kubernetes.io/is-default-class":"true"},"name":"gp2"},"parameters":{"fsType":"ext4","type":"gp2"},"provisioner":"kubernetes.io/aws-ebs","volumeBindingMode":"WaitForFirstConsumer"}
-    storageclass.kubernetes.io/is-default-class: "false"
-  name: gp2
-parameters:
-  fsType: ext4
-  type: gp2
-provisioner: kubernetes.io/aws-ebs
-reclaimPolicy: Delete
-volumeBindingMode: WaitForFirstConsumer
-YAML
 }
