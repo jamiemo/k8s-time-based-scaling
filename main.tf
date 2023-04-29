@@ -179,7 +179,7 @@ module "eks_blueprints_kubernetes_addons" {
 
   enable_amazon_eks_aws_ebs_csi_driver = true
   enable_aws_efs_csi_driver            = true
-  aws_efs_csi_driver_irsa_policies     = [module.efs_csi_tag_policy.arn]
+  aws_efs_csi_driver_irsa_policies     = [resource.aws_iam_policy.aws_efs_csi_driver_tags.arn]
   enable_karpenter                     = true
   enable_kubecost                      = true
   enable_metrics_server                = true
@@ -548,27 +548,26 @@ module "efs" {
   tags = local.tags
 }
 
-module "efs_csi_tag_policy" {
-  source = "terraform-aws-modules/iam/aws//modules/iam-policy"
-
-  name = "AllowTagResource"
-  path = "/"
-
-  policy = <<EOF
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Action": "elasticfilesystem:TagResource",
-      "Condition": {
-          "StringLike": {
-              "aws:RequestTag/efs.csi.aws.com/cluster": "true"
-          }
-      },
-      "Effect": "Allow",
-      "Resource": "${module.efs.arn}"
-    }
-  ]
+resource "aws_iam_policy" "aws_efs_csi_driver_tags" {
+  name        = "${module.eks_blueprints.eks_cluster_id}-efs-csi-tag-policy"
+  description = "IAM Policy for AWS EFS CSI Driver Tags"
+  policy      = data.aws_iam_policy_document.aws_efs_csi_driver_tags.json
+  tags        = local.tags
 }
-EOF
+
+data "aws_iam_policy_document" "aws_efs_csi_driver_tags" {
+  statement {
+    sid       = "AllowTagResource"
+    effect    = "Allow"
+    resources = [
+      module.efs.arn
+    ]
+    actions   = ["elasticfilesystem:TagResource"]
+
+    condition {
+      test     = "StringLike"
+      variable = "aws:ResourceTag/efs.csi.aws.com/cluster"
+      values   = ["true"]
+    }
+  }
 }
