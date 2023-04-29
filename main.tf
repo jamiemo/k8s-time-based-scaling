@@ -548,6 +548,8 @@ module "efs" {
   tags = local.tags
 }
 
+# Workaround for incomplete EFS IAM policy
+# https://github.com/aws-ia/terraform-aws-eks-blueprints/issues/1572
 resource "aws_iam_policy" "aws_efs_csi_driver_tags" {
   name        = "${module.eks_blueprints.eks_cluster_id}-efs-csi-tag-policy"
   description = "IAM Policy for AWS EFS CSI Driver Tags"
