@@ -528,18 +528,24 @@ module "efs" {
   source  = "terraform-aws-modules/efs/aws"
   version = "~> 1.0"
 
-  creation_token = local.name
-  name           = local.name
+  name                 = local.name
+  creation_token       = local.name
+  encrypted            = true
+  performance_mode     = "generalPurpose"
+  throughput_mode      = "bursting"
+  create_backup_policy = true
+  enable_backup_policy = true
 
   # Mount targets / security group
   mount_targets = {
     for k, v in zipmap(local.azs, module.vpc.private_subnets) : k => { subnet_id = v }
   }
+  security_group_name        = "${local.name} EFS security group"
   security_group_description = "${local.name} EFS security group"
   security_group_vpc_id      = module.vpc.vpc_id
   security_group_rules = {
     vpc = {
-      # relying on the defaults provdied for EFS/NFS (2049/TCP + ingress)
+      # Relying on the defaults provdied for EFS/NFS (2049/TCP + ingress)
       description = "NFS ingress from VPC private subnets"
       cidr_blocks = module.vpc.private_subnets_cidr_blocks
     }
@@ -559,12 +565,12 @@ resource "aws_iam_policy" "aws_efs_csi_driver_tags" {
 
 data "aws_iam_policy_document" "aws_efs_csi_driver_tags" {
   statement {
-    sid       = "AllowTagResource"
-    effect    = "Allow"
+    sid    = "AllowTagResource"
+    effect = "Allow"
     resources = [
       module.efs.arn
     ]
-    actions   = ["elasticfilesystem:TagResource"]
+    actions = ["elasticfilesystem:TagResource"]
 
     condition {
       test     = "StringLike"
