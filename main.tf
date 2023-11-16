@@ -54,10 +54,10 @@ data "aws_region" "current" {
 #---------------------------------------------------------------
 
 module "eks_blueprints" {
-  source = "github.com/aws-ia/terraform-aws-eks-blueprints?ref=v4.24.0"
+  source = "github.com/aws-ia/terraform-aws-eks-blueprints?ref=v4.32.1"
 
   cluster_name    = local.name
-  cluster_version = "1.23"
+  cluster_version = "1.28"
 
   vpc_id             = module.vpc.vpc_id
   private_subnet_ids = module.vpc.private_subnets
@@ -170,7 +170,7 @@ module "eks_blueprints" {
 }
 
 module "eks_blueprints_kubernetes_addons" {
-  source = "github.com/aws-ia/terraform-aws-eks-blueprints//modules/kubernetes-addons?ref=v4.24.0"
+  source = "github.com/aws-ia/terraform-aws-eks-blueprints//modules/kubernetes-addons?ref=v4.32.1"
 
   eks_cluster_id       = module.eks_blueprints.eks_cluster_id
   eks_cluster_endpoint = module.eks_blueprints.eks_cluster_endpoint
@@ -186,7 +186,6 @@ module "eks_blueprints_kubernetes_addons" {
 
   karpenter_node_iam_instance_profile        = module.karpenter.instance_profile_name
   karpenter_enable_spot_termination_handling = true
-  karpenter_sqs_queue_arn                    = module.karpenter.queue_arn
 
   karpenter_helm_config = {
     namespace        = kubernetes_namespace.karpenter.metadata[0].name
@@ -242,7 +241,7 @@ module "karpenter" {
 # Creates Launch templates for Karpenter
 # Launch template outputs will be used in Karpenter Provisioners yaml files. Checkout this examples/karpenter/provisioners/default_provisioner_with_launch_templates.yaml
 module "karpenter_launch_templates" {
-  source = "github.com/aws-ia/terraform-aws-eks-blueprints//modules/launch-templates?ref=v4.24.0"
+  source = "github.com/aws-ia/terraform-aws-eks-blueprints//modules/launch-templates?ref=v4.32.1"
 
   eks_cluster_id = module.eks_blueprints.eks_cluster_id
 
@@ -317,7 +316,7 @@ resource "kubernetes_namespace" "kubectl" {
 }
 
 module "irsa" {
-  source                      = "github.com/aws-ia/terraform-aws-eks-blueprints//modules/irsa?ref=v4.24.0"
+  source                      = "github.com/aws-ia/terraform-aws-eks-blueprints//modules/irsa?ref=v4.32.1"
   kubernetes_namespace        = kubernetes_namespace.kubectl.metadata[0].name
   create_kubernetes_namespace = false
   kubernetes_service_account  = "kubectl-hpa"

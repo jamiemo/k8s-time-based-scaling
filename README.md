@@ -222,3 +222,4 @@ for i in `kubectl get pods -A --no-headers | grep -i terminating | awk '{ print 
 # ToDo
 - [Update the aws-node daemonset to use IRSA](https://aws.github.io/aws-eks-best-practices/security/docs/iam/#update-the-aws-node-daemonset-to-use-irsa)
 - [Enable Amazon Inspector for ec2 and ecr](https://aws.github.io/aws-eks-best-practices/security/docs/network/#log-network-traffic-metadata)
+- TODO: Check for kubectl image before deploying demo
