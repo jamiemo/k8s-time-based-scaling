@@ -124,7 +124,10 @@ module "eks_blueprints" {
     ingress_nodes_karpenter_ports_tcp = {
       description                = "Karpenter readiness"
       protocol                   = "tcp"
-      from_port                  = 8443
+      from_port                  = 8000
+      # https://karpenter.sh/docs/upgrading/upgrade-guide/#upgrading-to-0370
+      # Starting with 0.37.3 Karpenter has enabled conversion webhooks by default to improve the v1 migration experience. 
+      # If working with a cluster with a network policy that blocks Ingress, ports 8000, 8001, 8081, 8443 will need to be allowlisted.
       to_port                    = 8443
       type                       = "ingress"
       source_node_security_group = true
@@ -202,6 +205,17 @@ resource "kubernetes_namespace" "karpenter" {
   }
 }
 
+# https://karpenter.sh/v1.0/upgrading/upgrade-guide/#crd-upgrades
+resource "helm_release" "karpenter-crd" {
+  namespace  = kubernetes_namespace.karpenter.metadata[0].name
+  name       = "karpenter-crd"
+  repository = "oci://public.ecr.aws/karpenter"
+  # Rate of unauthenticated image pulls: 1 per second
+  # https://docs.aws.amazon.com/AmazonECR/latest/public/public-service-quotas.html
+  chart   = "karpenter-crd"
+  version = "0.37.5"
+}
+
 resource "helm_release" "karpenter" {
   namespace  = kubernetes_namespace.karpenter.metadata[0].name
   name       = "karpenter"
@@ -209,7 +223,7 @@ resource "helm_release" "karpenter" {
   # Rate of unauthenticated image pulls: 1 per second
   # https://docs.aws.amazon.com/AmazonECR/latest/public/public-service-quotas.html
   chart   = "karpenter"
-  version = "v0.32.10"
+  version = "0.37.5"
   wait    = false
 
   values = [
@@ -224,6 +238,7 @@ resource "helm_release" "karpenter" {
       interruptionQueue: ${module.karpenter.queue_name}
     EOT
   ]
+  depends_on = [ helm_release.karpenter-crd ]
 }
 
 resource "kubectl_manifest" "karpenter_node_class" {
