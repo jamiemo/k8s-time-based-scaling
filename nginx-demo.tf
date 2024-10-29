@@ -28,8 +28,7 @@ resource "kubernetes_deployment" "nginx_demo" {
       }
       spec {
         node_selector = {
-          "type"        = "karpenter"
-          "provisioner" = "default-lt"
+          "loadtype" = "autoscale"
         }
         toleration {
           key      = "default-lt"
@@ -86,7 +85,7 @@ resource "kubernetes_service" "nginx_demo" {
   }
 }
 
-resource "kubernetes_horizontal_pod_autoscaler" "nginx_demo" {
+resource "kubernetes_horizontal_pod_autoscaler_v1" "nginx_demo" {
   metadata {
     name      = local.demo_name
     namespace = kubernetes_namespace.nginx-demo.metadata[0].name
@@ -98,16 +97,6 @@ resource "kubernetes_horizontal_pod_autoscaler" "nginx_demo" {
       api_version = "apps/v1"
       kind        = "Deployment"
       name        = local.demo_name
-    }
-    metric {
-      type = "Resource"
-      resource {
-        name = "cpu"
-        target {
-          type                = "Utilization"
-          average_utilization = "50"
-        }
-      }
     }
   }
 }
