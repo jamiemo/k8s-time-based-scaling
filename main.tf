@@ -185,17 +185,18 @@ module "eks_blueprints_kubernetes_addons" {
   enable_amazon_eks_vpc_cni            = true
   enable_amazon_eks_aws_ebs_csi_driver = true
 
+  # https://community.aws/content/2zMHI2SMLSaqyRmOxrSL95EG9zZ/amazon-eks-upgrade-guidance-v1-30-to-1-31#addon-version-requirements
   amazon_eks_coredns_config = {
-    addon_version = "v1.11.1-eksbuild.8"
+    addon_version = "v1.11.4-eksbuild.14"
   }
   amazon_eks_aws_ebs_csi_driver_config = {
-    addon_version = "v1.36.0-eksbuild.1"
+    addon_version = "v1.45.0-eksbuild.2"
   }
   amazon_eks_vpc_cni_config = {
-    addon_version = "v1.18.1-eksbuild.3"
+    addon_version = "v1.19.6-eksbuild.1"
   }
   amazon_eks_kube_proxy_config = {
-    addon_version = "v1.30.0-eksbuild.3"
+    addon_version = "v1.30.6-eksbuild.3"
   }
 
   karpenter_node_iam_instance_profile        = module.karpenter.instance_profile_name
