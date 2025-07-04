@@ -177,11 +177,13 @@ module "eks_blueprints_kubernetes_addons" {
   eks_oidc_provider    = module.eks_blueprints.oidc_provider
   eks_cluster_version  = module.eks_blueprints.eks_cluster_version
 
-  enable_amazon_eks_aws_ebs_csi_driver = true
   enable_karpenter                     = true
   enable_kubecost                      = true
   enable_metrics_server                = true
   enable_amazon_eks_coredns            = true
+  enable_amazon_eks_kube_proxy         = true
+  enable_amazon_eks_vpc_cni            = true
+  enable_amazon_eks_aws_ebs_csi_driver = true
 
   amazon_eks_coredns_config = {
     addon_version = "v1.11.1-eksbuild.8"

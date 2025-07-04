@@ -86,7 +86,7 @@ resource "kubernetes_service" "nginx_demo" {
   }
 }
 
-resource "kubernetes_horizontal_pod_autoscaler" "nginx_demo" {
+resource "kubernetes_horizontal_pod_autoscaler_v2" "nginx_demo" {
   metadata {
     name      = local.demo_name
     namespace = kubernetes_namespace.nginx-demo.metadata[0].name

@@ -1,4 +1,4 @@
-resource "kubernetes_cron_job" "scale_min_replicas" {
+resource "kubernetes_cron_job_v1" "scale_min_replicas" {
   metadata {
     name      = var.name
     namespace = var.service-account-namespace
