@@ -28,13 +28,7 @@ resource "kubernetes_deployment" "nginx_demo" {
       }
       spec {
         node_selector = {
-          "type"        = "karpenter"
-          "provisioner" = "default-lt"
-        }
-        toleration {
-          key      = "default-lt"
-          operator = "Exists"
-          effect   = "NoSchedule"
+          "karpenter.sh/nodepool" = "default"
         }
         container {
           image = "nginx:1.21.6"

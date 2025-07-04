@@ -177,7 +177,7 @@ module "eks_blueprints_kubernetes_addons" {
   eks_oidc_provider    = module.eks_blueprints.oidc_provider
   eks_cluster_version  = module.eks_blueprints.eks_cluster_version
 
-  enable_karpenter                     = true
+  enable_karpenter                     = false
   enable_kubecost                      = true
   enable_metrics_server                = true
   enable_amazon_eks_coredns            = true
@@ -240,80 +240,153 @@ resource "kubernetes_namespace" "karpenter" {
   }
 }
 
-# Creates Karpenter native node termination handler resources and IAM instance profile
 module "karpenter" {
   source  = "terraform-aws-modules/eks/aws//modules/karpenter"
-  version = "~> 19.5"
+  version = "~> 19.21.0"
 
   cluster_name           = module.eks_blueprints.eks_cluster_id
   irsa_oidc_provider_arn = module.eks_blueprints.eks_oidc_provider_arn
-  create_irsa            = false # IRSA will be created by the kubernetes-addons module
+
+  # Reuse the managed node IAM role to avoid updating the aws-auth configmap until there are better methods in later versions
+  # https://github.com/terraform-aws-modules/terraform-aws-eks/tree/v20.20.0/modules/aws-auth
+  # EKS version 1.24 and above
+  # enable_pod_identity = false
+  # https://aws.amazon.com/blogs/containers/amazon-eks-pod-identity-a-new-way-for-applications-on-eks-to-obtain-iam-credentials/
+
+  create_iam_role                            = false
+  iam_role_arn                               = module.eks_blueprints.managed_node_group_iam_role_arns[0]
+  create_irsa                                = true
+  irsa_tags                                  = local.tags
+  enable_karpenter_instance_profile_creation = true
+  enable_spot_termination                    = true
+  iam_role_additional_policies = {
+    "AmazonEC2ContainerRegistryReadOnly" = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
+  }
 
   tags = local.tags
 }
 
-# Creates Launch templates for Karpenter
-# Launch template outputs will be used in Karpenter Provisioners yaml files. Checkout this examples/karpenter/provisioners/default_provisioner_with_launch_templates.yaml
-module "karpenter_launch_templates" {
-  source = "github.com/aws-ia/terraform-aws-eks-blueprints//modules/launch-templates?ref=v4.32.1"
-
-  eks_cluster_id = module.eks_blueprints.eks_cluster_id
-
-  launch_template_config = {
-    linux = {
-      ami                    = data.aws_ami.eks.id
-      launch_template_prefix = "karpenter"
-      monitoring             = true
-      iam_instance_profile   = module.eks_blueprints.managed_node_group_iam_instance_profile_id[0]
-      vpc_security_group_ids = [module.eks_blueprints.worker_node_security_group_id]
-      block_device_mappings = [
-        {
-          device_name           = "/dev/xvda"
-          volume_type           = "gp3"
-          volume_size           = 200
-          encrypted             = true
-          delete_on_termination = true
-        }
-      ]
-    }
-
-    bottlerocket = {
-      ami                    = data.aws_ami.bottlerocket.id
-      launch_template_os     = "bottlerocket"
-      launch_template_prefix = "bottle"
-      iam_instance_profile   = module.eks_blueprints.managed_node_group_iam_instance_profile_id[0]
-      vpc_security_group_ids = [module.eks_blueprints.worker_node_security_group_id]
-      block_device_mappings = [
-        {
-          device_name           = "/dev/xvda"
-          volume_type           = "gp3"
-          volume_size           = 200
-          encrypted             = true
-          delete_on_termination = true
-        }
-      ]
-    }
-  }
-
-  tags = merge(local.tags, { Name = "karpenter" })
+# https://karpenter.sh/v1.0/upgrading/upgrade-guide/#crd-upgrades
+resource "helm_release" "karpenter-crd" {
+  namespace  = kubernetes_namespace.karpenter.metadata[0].name
+  name       = "karpenter-crd"
+  repository = "oci://public.ecr.aws/karpenter"
+  # Rate of unauthenticated image pulls: 1 per second
+  # https://docs.aws.amazon.com/AmazonECR/latest/public/public-service-quotas.html
+  chart   = "karpenter-crd"
+  version = "0.37.5"
 }
 
-# Deploying default provisioner and default-lt (using launch template) for Karpenter autoscaler
-data "kubectl_path_documents" "karpenter_provisioners" {
-  pattern = "${path.module}/provisioners/default_provisioner*.yaml" # without launch template
-  vars = {
-    azs                     = join(",", local.azs)
-    iam-instance-profile-id = "${local.name}-${local.node_group_name}"
-    eks-cluster-id          = local.name
-    eks-vpc_name            = local.name
-  }
+resource "helm_release" "karpenter" {
+  namespace  = kubernetes_namespace.karpenter.metadata[0].name
+  name       = "karpenter"
+  repository = "oci://public.ecr.aws/karpenter"
+  # Rate of unauthenticated image pulls: 1 per second
+  # https://docs.aws.amazon.com/AmazonECR/latest/public/public-service-quotas.html
+  chart   = "karpenter"
+  version = "0.37.5"
+  wait    = false
+
+  values = [
+    <<-EOT
+    serviceAccount:
+      create: true
+      annotations: 
+        eks.amazonaws.com/role-arn: ${module.karpenter.irsa_arn}
+    settings:
+      clusterName: ${module.eks_blueprints.eks_cluster_id}
+      clusterEndpoint: ${module.eks_blueprints.eks_cluster_endpoint}
+      interruptionQueue: ${module.karpenter.queue_name}
+    EOT
+  ]
+  depends_on = [ helm_release.karpenter-crd ]
 }
 
-resource "kubectl_manifest" "karpenter_provisioner" {
-  for_each  = toset(data.kubectl_path_documents.karpenter_provisioners.documents)
-  yaml_body = each.value
+resource "kubectl_manifest" "karpenter_node_class" {
+  yaml_body = <<-YAML
+    apiVersion: karpenter.k8s.aws/v1beta1
+    kind: EC2NodeClass
+    metadata:
+      name: default
+    spec:
+      amiFamily: Bottlerocket
+      role: ${module.eks_blueprints.managed_node_group_iam_role_names[0]}
+      subnetSelectorTerms:
+        - tags:
+            Name: "${module.eks_blueprints.eks_cluster_id}-private-*"
+      securityGroupSelectorTerms:
+        - tags:
+            karpenter.sh/discovery/${module.eks_blueprints.eks_cluster_id}: ${module.eks_blueprints.eks_cluster_id}
+      tags:
+        karpenter.sh/discovery: ${module.eks_blueprints.eks_cluster_id}
+        Name: karpenter.sh/nodepool/default
+      blockDeviceMappings:
+        - deviceName: /dev/xvda
+          ebs:
+            volumeSize: 25Gi
+            volumeType: gp3
+            iops: 3000
+            encrypted: true
+            deleteOnTermination: true
+            throughput: 125
+        - deviceName: /dev/xvdb
+          ebs:
+            volumeSize: 200Gi
+            volumeType: gp3
+            iops: 3000
+            encrypted: true
+            deleteOnTermination: true
+            throughput: 125
+      detailedMonitoring: true
+  YAML
 
-  depends_on = [module.eks_blueprints_kubernetes_addons]
+  depends_on = [
+    helm_release.karpenter
+  ]
+}
+
+resource "kubectl_manifest" "karpenter_node_pool" {
+  yaml_body = <<-YAML
+    apiVersion: karpenter.sh/v1beta1
+    kind: NodePool
+    metadata:
+      name: default
+    spec:
+      template:
+        spec:
+          metadata:
+            labels:
+              loadtype: autoscale
+          nodeClassRef:
+            name: default
+          requirements:
+            - key: "karpenter.sh/capacity-type"
+              operator: In
+              values: ["spot"]
+            - key: "kubernetes.io/arch"
+              operator: In
+              values: ["amd64"]
+            - key: "karpenter.k8s.aws/instance-category"
+              operator: In
+              values: ["t"]
+            - key: "karpenter.k8s.aws/instance-cpu"
+              operator: In
+              values: ["2"]
+            - key: "karpenter.k8s.aws/instance-hypervisor"
+              operator: In
+              values: ["nitro"]
+            - key: "karpenter.k8s.aws/instance-generation"
+              operator: Gt
+              values: ["2"]
+      limits:
+        cpu: 200
+      disruption:
+        consolidationPolicy: WhenUnderutilized
+  YAML
+
+  depends_on = [
+    kubectl_manifest.karpenter_node_class
+  ]
 }
 
 #---------------------------------------------------------------
