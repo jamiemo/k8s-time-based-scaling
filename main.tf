@@ -143,6 +143,8 @@ module "eks_blueprints" {
     managed_ondemand = {
       node_group_name = "managed-ondemand"
       instance_types  = ["t3.large"]
+      # https://docs.aws.amazon.com/eks/latest/userguide/al2023.html
+      ami_type        = "AL2023_X86_64_STANDARD"
 
       subnet_ids   = module.vpc.private_subnets
       max_size     = 4
@@ -157,8 +159,8 @@ module "eks_blueprints" {
       }
 
       # Launch template configuration
-      create_launch_template = true              # false will use the default launch template
-      launch_template_os     = "amazonlinux2eks" # amazonlinux2eks or bottlerocket
+      create_launch_template = false              # false will use the default launch template
+      # launch_template_os     = "amazonlinux2eks" # amazonlinux2eks or bottlerocket
     }
   }
 
