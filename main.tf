@@ -158,7 +158,8 @@ module "eks_blueprints" {
 
       # Launch template configuration
       create_launch_template = true              # false will use the default launch template
-      launch_template_os     = "amazonlinux2eks" # amazonlinux2eks or bottlerocket
+      ami_type = "BOTTLEROCKET_x86_64"
+      launch_template_os     = "bottlerocket" # amazonlinux2eks or bottlerocket
     }
   }
 
