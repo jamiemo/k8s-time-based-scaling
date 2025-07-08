@@ -196,7 +196,7 @@ module "eks_blueprints_kubernetes_addons" {
     addon_version = "v1.45.0-eksbuild.2"
   }
   amazon_eks_vpc_cni_config = {
-    addon_version = "v1.19.6-eksbuild.1"
+    addon_version = "v1.19.0-eksbuild.1"
   }
   amazon_eks_kube_proxy_config = {
     addon_version = "v1.30.6-eksbuild.3"
