@@ -277,7 +277,7 @@ resource "helm_release" "karpenter-crd" {
   # Rate of unauthenticated image pulls: 1 per second
   # https://docs.aws.amazon.com/AmazonECR/latest/public/public-service-quotas.html
   chart   = "karpenter-crd"
-  version = "0.37.5"
+  version = "1.0.10"
 }
 
 resource "helm_release" "karpenter" {
@@ -287,7 +287,7 @@ resource "helm_release" "karpenter" {
   # Rate of unauthenticated image pulls: 1 per second
   # https://docs.aws.amazon.com/AmazonECR/latest/public/public-service-quotas.html
   chart   = "karpenter"
-  version = "0.37.5"
+  version = "1.0.10"
   wait    = false
 
   values = [
