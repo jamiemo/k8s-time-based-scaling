@@ -124,7 +124,10 @@ module "eks_blueprints" {
     ingress_nodes_karpenter_ports_tcp = {
       description                = "Karpenter readiness"
       protocol                   = "tcp"
-      from_port                  = 8443
+      from_port                  = 8000
+      # https://karpenter.sh/docs/upgrading/upgrade-guide/#upgrading-to-0370
+      # Starting with 0.37.3 Karpenter has enabled conversion webhooks by default to improve the v1 migration experience. 
+      # If working with a cluster with a network policy that blocks Ingress, ports 8000, 8001, 8081, 8443 will need to be allowlisted.
       to_port                    = 8443
       type                       = "ingress"
       source_node_security_group = true
