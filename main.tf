@@ -165,7 +165,8 @@ module "eks_blueprints" {
   }
 
   iam_role_additional_policies = [
-    "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
+    "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly",
+    "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
   ]
 
   tags = local.tags
