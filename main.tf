@@ -278,6 +278,14 @@ resource "helm_release" "karpenter-crd" {
   # https://docs.aws.amazon.com/AmazonECR/latest/public/public-service-quotas.html
   chart   = "karpenter-crd"
   version = "1.0.10"
+  values = [
+    <<-EOT
+    webhook:
+      enabled: true
+      serviceName: "karpenter"
+      port: 8443
+    EOT
+  ]
 }
 
 resource "helm_release" "karpenter" {
