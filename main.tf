@@ -57,7 +57,7 @@ module "eks_blueprints" {
   source = "github.com/aws-ia/terraform-aws-eks-blueprints?ref=v4.32.1"
 
   cluster_name    = local.name
-  cluster_version = "1.30"
+  cluster_version = "1.31"
 
   vpc_id             = module.vpc.vpc_id
   private_subnet_ids = module.vpc.private_subnets
@@ -186,20 +186,6 @@ module "eks_blueprints_kubernetes_addons" {
   enable_amazon_eks_kube_proxy         = true
   enable_amazon_eks_vpc_cni            = true
   enable_amazon_eks_aws_ebs_csi_driver = true
-
-  # https://community.aws/content/2zMHI2SMLSaqyRmOxrSL95EG9zZ/amazon-eks-upgrade-guidance-v1-30-to-1-31#addon-version-requirements
-  amazon_eks_coredns_config = {
-    addon_version = "v1.11.4-eksbuild.14"
-  }
-  amazon_eks_aws_ebs_csi_driver_config = {
-    addon_version = "v1.45.0-eksbuild.2"
-  }
-  amazon_eks_vpc_cni_config = {
-    addon_version = "v1.19.6-eksbuild.1"
-  }
-  amazon_eks_kube_proxy_config = {
-    addon_version = "v1.30.6-eksbuild.3"
-  }
 
   karpenter_node_iam_instance_profile        = module.karpenter.instance_profile_name
   karpenter_enable_spot_termination_handling = true
