@@ -320,8 +320,6 @@ resource "kubectl_manifest" "karpenter_node_class" {
     kind: EC2NodeClass
     metadata:
       annotations:
-        karpenter.k8s.aws/ec2nodeclass-hash: "11385914485223634349"
-        karpenter.k8s.aws/ec2nodeclass-hash-version: v2
         kubectl.kubernetes.io/last-applied-configuration: |
           {"apiVersion":"karpenter.k8s.aws/v1beta1","kind":"EC2NodeClass","metadata":{"annotations":{},"name":"default"},"spec":{"amiFamily":"Bottlerocket","blockDeviceMappings":[{"deviceName":"/dev/xvda","ebs":{"deleteOnTermination":true,"encrypted":true,"iops":3000,"throughput":125,"volumeSize":"25Gi","volumeType":"gp3"}},{"deviceName":"/dev/xvdb","ebs":{"deleteOnTermination":true,"encrypted":true,"iops":3000,"throughput":125,"volumeSize":"200Gi","volumeType":"gp3"}}],"detailedMonitoring":true,"role":"k8s-time-based-scaling-managed-ondemand","securityGroupSelectorTerms":[{"tags":{"karpenter.sh/discovery/k8s-time-based-scaling":"k8s-time-based-scaling"}}],"subnetSelectorTerms":[{"tags":{"Name":"k8s-time-based-scaling-private-*"}}],"tags":{"Name":"karpenter.sh/nodepool/default","karpenter.sh/discovery":"k8s-time-based-scaling"}}}
       finalizers:
@@ -378,8 +376,6 @@ resource "kubectl_manifest" "karpenter_node_pool" {
     metadata:
       annotations:
         compatibility.karpenter.sh/v1beta1-nodeclass-reference: '{"name":"default"}'
-        karpenter.sh/nodepool-hash: "12393960163388511505"
-        karpenter.sh/nodepool-hash-version: v2
         kubectl.kubernetes.io/last-applied-configuration: |
           {"apiVersion":"karpenter.sh/v1beta1","kind":"NodePool","metadata":{"annotations":{},"name":"default"},"spec":{"disruption":{"consolidationPolicy":"WhenUnderutilized"},"limits":{"cpu":200},"template":{"spec":{"metadata":{"labels":{"loadtype":"autoscale"}},"nodeClassRef":{"name":"default"},"requirements":[{"key":"karpenter.sh/capacity-type","operator":"In","values":["spot"]},{"key":"kubernetes.io/arch","operator":"In","values":["amd64"]},{"key":"karpenter.k8s.aws/instance-category","operator":"In","values":["t"]},{"key":"karpenter.k8s.aws/instance-cpu","operator":"In","values":["2"]},{"key":"karpenter.k8s.aws/instance-hypervisor","operator":"In","values":["nitro"]},{"key":"karpenter.k8s.aws/instance-generation","operator":"Gt","values":["2"]}]}}}}
       generation: 1
