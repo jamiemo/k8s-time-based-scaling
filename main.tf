@@ -555,16 +555,6 @@ resource "aws_ecr_repository" "cluster_repo" {
   }
 }
 
-data "aws_ami" "eks" {
-  owners      = ["amazon"]
-  most_recent = true
-
-  filter {
-    name   = "name"
-    values = ["amazon-eks-node-${module.eks_blueprints.eks_cluster_version}-*"]
-  }
-}
-
 data "aws_ami" "bottlerocket" {
   owners      = ["amazon"]
   most_recent = true
