@@ -263,7 +263,7 @@ resource "helm_release" "karpenter-crd" {
   # Rate of unauthenticated image pulls: 1 per second
   # https://docs.aws.amazon.com/AmazonECR/latest/public/public-service-quotas.html
   chart   = "karpenter-crd"
-  version = "1.0.10"
+  version = "1.5.3"
   values = [
     <<-EOT
     webhook:
@@ -281,7 +281,7 @@ resource "helm_release" "karpenter" {
   # Rate of unauthenticated image pulls: 1 per second
   # https://docs.aws.amazon.com/AmazonECR/latest/public/public-service-quotas.html
   chart   = "karpenter"
-  version = "1.0.10"
+  version = "1.5.3"
   wait    = false
 
   values = [
