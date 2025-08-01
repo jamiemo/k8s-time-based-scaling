@@ -54,10 +54,10 @@ data "aws_region" "current" {
 #---------------------------------------------------------------
 
 module "eks_blueprints" {
-  source = "github.com/aws-ia/terraform-aws-eks-blueprints?ref=v4.24.0"
+  source = "github.com/aws-ia/terraform-aws-eks-blueprints?ref=v4.32.1"
 
   cluster_name    = local.name
-  cluster_version = "1.23"
+  cluster_version = "1.31"
 
   vpc_id             = module.vpc.vpc_id
   private_subnet_ids = module.vpc.private_subnets
@@ -124,7 +124,10 @@ module "eks_blueprints" {
     ingress_nodes_karpenter_ports_tcp = {
       description                = "Karpenter readiness"
       protocol                   = "tcp"
-      from_port                  = 8443
+      from_port                  = 8000
+      # https://karpenter.sh/docs/upgrading/upgrade-guide/#upgrading-to-0370
+      # Starting with 0.37.3 Karpenter has enabled conversion webhooks by default to improve the v1 migration experience. 
+      # If working with a cluster with a network policy that blocks Ingress, ports 8000, 8001, 8081, 8443 will need to be allowlisted.
       to_port                    = 8443
       type                       = "ingress"
       source_node_security_group = true
@@ -143,6 +146,8 @@ module "eks_blueprints" {
     managed_ondemand = {
       node_group_name = "managed-ondemand"
       instance_types  = ["t3.large"]
+      # https://docs.aws.amazon.com/eks/latest/userguide/al2023.html
+      ami_type        = "BOTTLEROCKET_x86_64"
 
       subnet_ids   = module.vpc.private_subnets
       max_size     = 4
@@ -158,33 +163,36 @@ module "eks_blueprints" {
 
       # Launch template configuration
       create_launch_template = true              # false will use the default launch template
-      launch_template_os     = "amazonlinux2eks" # amazonlinux2eks or bottlerocket
+      launch_template_os     = "bottlerocket" # amazonlinux2eks or bottlerocket
     }
   }
 
   iam_role_additional_policies = [
-    "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
+    "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly",
+    "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
   ]
 
   tags = local.tags
 }
 
 module "eks_blueprints_kubernetes_addons" {
-  source = "github.com/aws-ia/terraform-aws-eks-blueprints//modules/kubernetes-addons?ref=v4.24.0"
+  source = "github.com/aws-ia/terraform-aws-eks-blueprints//modules/kubernetes-addons?ref=v4.32.1"
 
   eks_cluster_id       = module.eks_blueprints.eks_cluster_id
   eks_cluster_endpoint = module.eks_blueprints.eks_cluster_endpoint
   eks_oidc_provider    = module.eks_blueprints.oidc_provider
   eks_cluster_version  = module.eks_blueprints.eks_cluster_version
 
-  enable_amazon_eks_aws_ebs_csi_driver = true
-  enable_karpenter                     = true
+  enable_karpenter                     = false
   enable_kubecost                      = true
   enable_metrics_server                = true
+  enable_amazon_eks_coredns            = true
+  enable_amazon_eks_kube_proxy         = true
+  enable_amazon_eks_vpc_cni            = true
+  enable_amazon_eks_aws_ebs_csi_driver = true
 
   karpenter_node_iam_instance_profile        = module.karpenter.instance_profile_name
   karpenter_enable_spot_termination_handling = true
-  karpenter_sqs_queue_arn                    = module.karpenter.queue_arn
 
   karpenter_helm_config = {
     namespace        = kubernetes_namespace.karpenter.metadata[0].name
@@ -205,10 +213,6 @@ module "eks_blueprints_kubernetes_addons" {
     ]
   }
 
-  depends_on = [
-    module.eks_blueprints.managed_node_groups
-  ]
-
   tags = local.tags
 }
 
@@ -225,80 +229,188 @@ resource "kubernetes_namespace" "karpenter" {
   }
 }
 
-# Creates Karpenter native node termination handler resources and IAM instance profile
 module "karpenter" {
   source  = "terraform-aws-modules/eks/aws//modules/karpenter"
-  version = "~> 19.5"
+  version = "~> 19.21.0"
 
   cluster_name           = module.eks_blueprints.eks_cluster_id
   irsa_oidc_provider_arn = module.eks_blueprints.eks_oidc_provider_arn
-  create_irsa            = false # IRSA will be created by the kubernetes-addons module
+
+  # Reuse the managed node IAM role to avoid updating the aws-auth configmap until there are better methods in later versions
+  # https://github.com/terraform-aws-modules/terraform-aws-eks/tree/v20.20.0/modules/aws-auth
+  # EKS version 1.24 and above
+  # enable_pod_identity = false
+  # https://aws.amazon.com/blogs/containers/amazon-eks-pod-identity-a-new-way-for-applications-on-eks-to-obtain-iam-credentials/
+
+  create_iam_role                            = false
+  iam_role_arn                               = module.eks_blueprints.managed_node_group_iam_role_arns[0]
+  create_irsa                                = true
+  irsa_tags                                  = local.tags
+  enable_karpenter_instance_profile_creation = true
+  enable_spot_termination                    = true
+  iam_role_additional_policies = {
+    "AmazonEC2ContainerRegistryReadOnly" = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
+  }
 
   tags = local.tags
 }
 
-# Creates Launch templates for Karpenter
-# Launch template outputs will be used in Karpenter Provisioners yaml files. Checkout this examples/karpenter/provisioners/default_provisioner_with_launch_templates.yaml
-module "karpenter_launch_templates" {
-  source = "github.com/aws-ia/terraform-aws-eks-blueprints//modules/launch-templates?ref=v4.24.0"
-
-  eks_cluster_id = module.eks_blueprints.eks_cluster_id
-
-  launch_template_config = {
-    linux = {
-      ami                    = data.aws_ami.eks.id
-      launch_template_prefix = "karpenter"
-      monitoring             = true
-      iam_instance_profile   = module.eks_blueprints.managed_node_group_iam_instance_profile_id[0]
-      vpc_security_group_ids = [module.eks_blueprints.worker_node_security_group_id]
-      block_device_mappings = [
-        {
-          device_name           = "/dev/xvda"
-          volume_type           = "gp3"
-          volume_size           = 200
-          encrypted             = true
-          delete_on_termination = true
-        }
-      ]
-    }
-
-    bottlerocket = {
-      ami                    = data.aws_ami.bottlerocket.id
-      launch_template_os     = "bottlerocket"
-      launch_template_prefix = "bottle"
-      iam_instance_profile   = module.eks_blueprints.managed_node_group_iam_instance_profile_id[0]
-      vpc_security_group_ids = [module.eks_blueprints.worker_node_security_group_id]
-      block_device_mappings = [
-        {
-          device_name           = "/dev/xvda"
-          volume_type           = "gp3"
-          volume_size           = 200
-          encrypted             = true
-          delete_on_termination = true
-        }
-      ]
-    }
-  }
-
-  tags = merge(local.tags, { Name = "karpenter" })
+# https://karpenter.sh/v1.0/upgrading/upgrade-guide/#crd-upgrades
+resource "helm_release" "karpenter-crd" {
+  namespace  = kubernetes_namespace.karpenter.metadata[0].name
+  name       = "karpenter-crd"
+  repository = "oci://public.ecr.aws/karpenter"
+  # Rate of unauthenticated image pulls: 1 per second
+  # https://docs.aws.amazon.com/AmazonECR/latest/public/public-service-quotas.html
+  chart   = "karpenter-crd"
+  version = "1.0.10"
+  values = [
+    <<-EOT
+    webhook:
+      enabled: true
+      serviceName: "karpenter"
+      port: 8443
+    EOT
+  ]
 }
 
-# Deploying default provisioner and default-lt (using launch template) for Karpenter autoscaler
-data "kubectl_path_documents" "karpenter_provisioners" {
-  pattern = "${path.module}/provisioners/default_provisioner*.yaml" # without launch template
-  vars = {
-    azs                     = join(",", local.azs)
-    iam-instance-profile-id = "${local.name}-${local.node_group_name}"
-    eks-cluster-id          = local.name
-    eks-vpc_name            = local.name
-  }
+resource "helm_release" "karpenter" {
+  namespace  = kubernetes_namespace.karpenter.metadata[0].name
+  name       = "karpenter"
+  repository = "oci://public.ecr.aws/karpenter"
+  # Rate of unauthenticated image pulls: 1 per second
+  # https://docs.aws.amazon.com/AmazonECR/latest/public/public-service-quotas.html
+  chart   = "karpenter"
+  version = "1.0.10"
+  wait    = false
+
+  values = [
+    <<-EOT
+    serviceAccount:
+      create: true
+      annotations: 
+        eks.amazonaws.com/role-arn: ${module.karpenter.irsa_arn}
+    settings:
+      clusterName: ${module.eks_blueprints.eks_cluster_id}
+      clusterEndpoint: ${module.eks_blueprints.eks_cluster_endpoint}
+      interruptionQueue: ${module.karpenter.queue_name}
+    EOT
+  ]
+  depends_on = [ helm_release.karpenter-crd ]
 }
 
-resource "kubectl_manifest" "karpenter_provisioner" {
-  for_each  = toset(data.kubectl_path_documents.karpenter_provisioners.documents)
-  yaml_body = each.value
+resource "kubectl_manifest" "karpenter_node_class" {
+  yaml_body = <<-YAML
+    apiVersion: karpenter.k8s.aws/v1
+    kind: EC2NodeClass
+    metadata:
+      annotations:
+        kubectl.kubernetes.io/last-applied-configuration: |
+          {"apiVersion":"karpenter.k8s.aws/v1beta1","kind":"EC2NodeClass","metadata":{"annotations":{},"name":"default"},"spec":{"amiFamily":"Bottlerocket","blockDeviceMappings":[{"deviceName":"/dev/xvda","ebs":{"deleteOnTermination":true,"encrypted":true,"iops":3000,"throughput":125,"volumeSize":"25Gi","volumeType":"gp3"}},{"deviceName":"/dev/xvdb","ebs":{"deleteOnTermination":true,"encrypted":true,"iops":3000,"throughput":125,"volumeSize":"200Gi","volumeType":"gp3"}}],"detailedMonitoring":true,"role":"k8s-time-based-scaling-managed-ondemand","securityGroupSelectorTerms":[{"tags":{"karpenter.sh/discovery/k8s-time-based-scaling":"k8s-time-based-scaling"}}],"subnetSelectorTerms":[{"tags":{"Name":"k8s-time-based-scaling-private-*"}}],"tags":{"Name":"karpenter.sh/nodepool/default","karpenter.sh/discovery":"k8s-time-based-scaling"}}}
+      finalizers:
+      - karpenter.k8s.aws/termination
+      generation: 1
+      name: default
+    spec:
+      amiSelectorTerms:
+      - alias: bottlerocket@latest
+      blockDeviceMappings:
+      - deviceName: /dev/xvda
+        ebs:
+          deleteOnTermination: true
+          encrypted: true
+          iops: 3000
+          throughput: 125
+          volumeSize: 25Gi
+          volumeType: gp3
+      - deviceName: /dev/xvdb
+        ebs:
+          deleteOnTermination: true
+          encrypted: true
+          iops: 3000
+          throughput: 125
+          volumeSize: 200Gi
+          volumeType: gp3
+      detailedMonitoring: true
+      metadataOptions:
+        httpEndpoint: enabled
+        httpProtocolIPv6: disabled
+        httpPutResponseHopLimit: 2
+        httpTokens: required
+      role: ${module.eks_blueprints.managed_node_group_iam_role_names[0]}
+      securityGroupSelectorTerms:
+      - tags:
+          karpenter.sh/discovery/${module.eks_blueprints.eks_cluster_id}: ${module.eks_blueprints.eks_cluster_id}
+      subnetSelectorTerms:
+      - tags:
+          Name: "${module.eks_blueprints.eks_cluster_id}-private-*"
+      tags:
+        Name: karpenter.sh/nodepool/default
+        karpenter.sh/discovery: ${module.eks_blueprints.eks_cluster_id}
+  YAML
 
-  depends_on = [module.eks_blueprints_kubernetes_addons]
+  depends_on = [
+    helm_release.karpenter
+  ]
+}
+
+resource "kubectl_manifest" "karpenter_node_pool" {
+  yaml_body = <<-YAML
+    apiVersion: karpenter.sh/v1
+    kind: NodePool
+    metadata:
+      annotations:
+        compatibility.karpenter.sh/v1beta1-nodeclass-reference: '{"name":"default"}'
+        kubectl.kubernetes.io/last-applied-configuration: |
+          {"apiVersion":"karpenter.sh/v1beta1","kind":"NodePool","metadata":{"annotations":{},"name":"default"},"spec":{"disruption":{"consolidationPolicy":"WhenUnderutilized"},"limits":{"cpu":200},"template":{"spec":{"metadata":{"labels":{"loadtype":"autoscale"}},"nodeClassRef":{"name":"default"},"requirements":[{"key":"karpenter.sh/capacity-type","operator":"In","values":["spot"]},{"key":"kubernetes.io/arch","operator":"In","values":["amd64"]},{"key":"karpenter.k8s.aws/instance-category","operator":"In","values":["t"]},{"key":"karpenter.k8s.aws/instance-cpu","operator":"In","values":["2"]},{"key":"karpenter.k8s.aws/instance-hypervisor","operator":"In","values":["nitro"]},{"key":"karpenter.k8s.aws/instance-generation","operator":"Gt","values":["2"]}]}}}}
+      generation: 1
+      name: default
+    spec:
+      disruption:
+        budgets:
+        - nodes: 10%
+        consolidateAfter: 0s
+        consolidationPolicy: WhenEmptyOrUnderutilized
+      limits:
+        cpu: "200"
+      template:
+        metadata: {}
+        spec:
+          expireAfter: 720h
+          nodeClassRef:
+            group: karpenter.k8s.aws
+            kind: EC2NodeClass
+            name: default
+          requirements:
+          - key: karpenter.sh/capacity-type
+            operator: In
+            values:
+            - spot
+          - key: kubernetes.io/arch
+            operator: In
+            values:
+            - amd64
+          - key: karpenter.k8s.aws/instance-category
+            operator: In
+            values:
+            - t
+          - key: karpenter.k8s.aws/instance-cpu
+            operator: In
+            values:
+            - "2"
+          - key: karpenter.k8s.aws/instance-hypervisor
+            operator: In
+            values:
+            - nitro
+          - key: karpenter.k8s.aws/instance-generation
+            operator: Gt
+            values:
+            - "2"
+  YAML
+
+  depends_on = [
+    kubectl_manifest.karpenter_node_class
+  ]
 }
 
 #---------------------------------------------------------------
@@ -315,7 +427,7 @@ resource "kubernetes_namespace" "kubectl" {
 }
 
 module "irsa" {
-  source                      = "github.com/aws-ia/terraform-aws-eks-blueprints//modules/irsa?ref=v4.24.0"
+  source                      = "github.com/aws-ia/terraform-aws-eks-blueprints//modules/irsa?ref=v4.32.1"
   kubernetes_namespace        = kubernetes_namespace.kubectl.metadata[0].name
   create_kubernetes_namespace = false
   kubernetes_service_account  = "kubectl-hpa"
@@ -400,7 +512,7 @@ resource "kubernetes_cluster_role" "hpa_irsa_role" {
 
 module "vpc" {
   source  = "terraform-aws-modules/vpc/aws"
-  version = "~> 3.0"
+  version = "v5.21.0"
 
   name = local.name
   cidr = local.vpc_cidr

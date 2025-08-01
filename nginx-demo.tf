@@ -28,13 +28,7 @@ resource "kubernetes_deployment" "nginx_demo" {
       }
       spec {
         node_selector = {
-          "type"        = "karpenter"
-          "provisioner" = "default-lt"
-        }
-        toleration {
-          key      = "default-lt"
-          operator = "Exists"
-          effect   = "NoSchedule"
+          "karpenter.sh/nodepool" = "default"
         }
         container {
           image = "nginx:1.21.6"
@@ -86,7 +80,7 @@ resource "kubernetes_service" "nginx_demo" {
   }
 }
 
-resource "kubernetes_horizontal_pod_autoscaler" "nginx_demo" {
+resource "kubernetes_horizontal_pod_autoscaler_v2" "nginx_demo" {
   metadata {
     name      = local.demo_name
     namespace = kubernetes_namespace.nginx-demo.metadata[0].name
