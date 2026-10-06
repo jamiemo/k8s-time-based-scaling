@@ -15,5 +15,5 @@ output "ecr_authentication" {
 
 output "docker_image" {
   description = "Build and push custom image for IAM Roles for Service Accounts authentication for kubectl."
-  value       = "docker build -t ${aws_ecr_repository.cluster_repo.repository_url} -t kubectl --build-arg aws_region=${local.region} --build-arg cluster_name=${local.name} . && docker push ${aws_ecr_repository.cluster_repo.repository_url}"
+  value       = "docker build -t ${aws_ecr_repository.cluster_repo.repository_url} -t kubectl --platform linux/amd64 --build-arg aws_region=${local.region} --build-arg cluster_name=${local.name} . && docker push ${aws_ecr_repository.cluster_repo.repository_url}"
 }

@@ -85,7 +85,7 @@ aws ecr get-login-password --region <region> | docker login --username AWS --pas
 Make sure Docker is running locally.
 
 ```sh
-docker build -t <ECR repo URL> -t kubectl --build-arg aws_region=<region> --build-arg cluster_name=<cluster name> .
+docker build -t <ECR repo URL> -t kubectl --platform linux/amd64 --build-arg aws_region=<region> --build-arg cluster_name=<cluster name> .
 docker push <ECR repo URL>
 ```
 
