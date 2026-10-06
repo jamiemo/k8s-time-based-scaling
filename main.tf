@@ -57,7 +57,7 @@ module "eks_blueprints" {
   source = "github.com/aws-ia/terraform-aws-eks-blueprints?ref=v4.32.1"
 
   cluster_name    = local.name
-  cluster_version = "1.31"
+  cluster_version = "1.33"
 
   vpc_id             = module.vpc.vpc_id
   private_subnet_ids = module.vpc.private_subnets
@@ -263,7 +263,7 @@ resource "helm_release" "karpenter-crd" {
   # Rate of unauthenticated image pulls: 1 per second
   # https://docs.aws.amazon.com/AmazonECR/latest/public/public-service-quotas.html
   chart   = "karpenter-crd"
-  version = "1.0.10"
+  version = "1.5.3"
   values = [
     <<-EOT
     webhook:
@@ -281,7 +281,7 @@ resource "helm_release" "karpenter" {
   # Rate of unauthenticated image pulls: 1 per second
   # https://docs.aws.amazon.com/AmazonECR/latest/public/public-service-quotas.html
   chart   = "karpenter"
-  version = "1.0.10"
+  version = "1.5.3"
   wait    = false
 
   values = [
@@ -552,16 +552,6 @@ resource "aws_ecr_repository" "cluster_repo" {
 
   image_scanning_configuration {
     scan_on_push = true
-  }
-}
-
-data "aws_ami" "eks" {
-  owners      = ["amazon"]
-  most_recent = true
-
-  filter {
-    name   = "name"
-    values = ["amazon-eks-node-${module.eks_blueprints.eks_cluster_version}-*"]
   }
 }
 
