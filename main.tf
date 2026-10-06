@@ -184,7 +184,7 @@ module "eks_blueprints_kubernetes_addons" {
   eks_cluster_version  = module.eks_blueprints.eks_cluster_version
 
   enable_karpenter                     = false
-  enable_kubecost                      = true
+  enable_kubecost                      = false
   enable_metrics_server                = true
   enable_amazon_eks_coredns            = true
   enable_amazon_eks_kube_proxy         = true
