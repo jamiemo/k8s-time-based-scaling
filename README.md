@@ -85,7 +85,7 @@ aws ecr get-login-password --region <region> | docker login --username AWS --pas
 Make sure Docker is running locally.
 
 ```sh
-docker build -t <ECR repo URL> -t kubectl --build-arg aws_region=<region> --build-arg cluster_name=<cluster name> .
+docker build -t <ECR repo URL> -t kubectl --platform linux/amd64 --build-arg aws_region=<region> --build-arg cluster_name=<cluster name> .
 docker push <ECR repo URL>
 ```
 
@@ -131,6 +131,24 @@ No resources found
 Destroy all resources:
 ```sh
 terraform destroy
+```
+
+### Troubleshooting Deployment
+The deployment may fail if the Helm charts cannot be pulled from the [Amazon Public ECR](https://docs.aws.amazon.com/AmazonECR/latest/public/public-troubleshooting.html#public-troubleshooting-authentication)
+```bash
+╷
+│ Error: could not download chart: unexpected status from HEAD request to https://public.ecr.aws/v2/karpenter/karpenter-crd/manifests/1.5.3: 403 Forbidden
+│ 
+│   with helm_release.karpenter-crd,
+│   on main.tf line 259, in resource "helm_release" "karpenter-crd":
+│  259: resource "helm_release" "karpenter-crd" {
+│ 
+╵
+```
+You may need to remove credentials to the AWS Public ECR:
+```bash
+docker logout public.ecr.aws
+helm registry logout public.ecr.aws
 ```
 
 ### Troubleshooting Failure to Destroy
