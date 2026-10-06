@@ -183,6 +183,11 @@ module "eks_blueprints_kubernetes_addons" {
   eks_oidc_provider    = module.eks_blueprints.oidc_provider
   eks_cluster_version  = module.eks_blueprints.eks_cluster_version
 
+  enable_aws_efs_csi_driver            = true
+  aws_efs_csi_driver_irsa_policies     = [resource.aws_iam_policy.aws_efs_csi_driver_tags.arn]
+  enable_kube_state_metrics            = true
+  enable_aws_load_balancer_controller  = false
+ 
   enable_karpenter                     = false
   enable_kubecost                      = false
   enable_metrics_server                = true
@@ -215,6 +220,110 @@ module "eks_blueprints_kubernetes_addons" {
 
   tags = local.tags
 }
+
+# EFS CSI
+# https://aws.amazon.com/blogs/storage/persistent-storage-for-kubernetes/
+# By default each access point created via dynamic provisioning writes files under a different directory on EFS, 
+# and each access point writes files to EFS using a different POSIX uid/gid. This enables multiple applications 
+# to use the same EFS volume for persistent storage while providing isolation between applications.
+
+# EFS storage class for persistent volumes
+resource "kubernetes_storage_class_v1" "efs" {
+  metadata {
+    name = "efs"
+  }
+
+  storage_provisioner = "efs.csi.aws.com"
+  parameters = {
+    provisioningMode = "efs-ap" # Dynamic provisioning
+    fileSystemId     = module.efs.id
+    directoryPerms   = "700"
+  }
+
+  mount_options = [
+    "iam"
+  ]
+
+  depends_on = [
+    module.eks_blueprints_kubernetes_addons
+  ]
+}
+
+module "efs" {
+  source  = "terraform-aws-modules/efs/aws"
+  version = "~> 1.0"
+
+  name                 = "${module.eks_blueprints.eks_cluster_id}-efs"
+  creation_token       = "${module.eks_blueprints.eks_cluster_id}-efs"
+  encrypted            = true
+  performance_mode     = "generalPurpose"
+  throughput_mode      = "bursting"
+  create_backup_policy = true
+  enable_backup_policy = true
+
+  # Mount targets / security group
+  mount_targets = {
+    for k, v in zipmap(local.azs, module.vpc.private_subnets) : k => { subnet_id = v }
+  }
+  security_group_name        = "${module.eks_blueprints.eks_cluster_id}-efs"
+  security_group_description = "${module.eks_blueprints.eks_cluster_id} EFS CSI security group"
+  security_group_vpc_id      = module.vpc.vpc_id
+  security_group_rules = {
+    vpc = {
+      # Relying on the defaults provdied for EFS/NFS (2049/TCP + ingress)
+      description = "NFS ingress from VPC private subnets"
+      cidr_blocks = [for k, v in local.azs : cidrsubnet(local.vpc_cidr, 8, k + 10)]
+    }
+  }
+
+  tags = local.tags
+}
+
+# Workaround for incomplete EFS IAM policy
+# https://github.com/aws-ia/terraform-aws-eks-blueprints/issues/1572
+resource "aws_iam_policy" "aws_efs_csi_driver_tags" {
+  name        = "${module.eks_blueprints.eks_cluster_id}-efs-csi-tag-policy"
+  description = "IAM Policy for AWS EFS CSI Driver Tags"
+  policy      = data.aws_iam_policy_document.aws_efs_csi_driver_tags.json
+  tags        = local.tags
+}
+
+data "aws_iam_policy_document" "aws_efs_csi_driver_tags" {
+  statement {
+    sid    = "AllowTagResource"
+    effect = "Allow"
+    resources = [
+      module.efs.arn
+    ]
+    actions = ["elasticfilesystem:TagResource"]
+
+    condition {
+      test     = "StringLike"
+      variable = "aws:ResourceTag/efs.csi.aws.com/cluster"
+      values   = ["true"]
+    }
+  }
+}
+
+resource "kubernetes_persistent_volume_claim" "efs_shared_disk" {
+  metadata {
+    name = "efs-reports"
+    namespace = kubernetes_namespace.nginx-demo.metadata[0].name
+    labels = {
+      "app.kubernetes.io/managed-by" = "Terraform"
+    }
+  }
+  spec {
+    storage_class_name = "efs"
+    access_modes = ["ReadWriteMany"]
+    resources {
+      requests = {
+        storage = "5Gi"
+      }
+    }
+  }
+}
+
 
 ################################################################################
 # Karpenter
