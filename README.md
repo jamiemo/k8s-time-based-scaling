@@ -133,6 +133,24 @@ Destroy all resources:
 terraform destroy
 ```
 
+### Troubleshooting Deployment
+The deployment may fail if the Helm charts cannot be pulled from the [Amazon Public ECR](https://docs.aws.amazon.com/AmazonECR/latest/public/public-troubleshooting.html#public-troubleshooting-authentication)
+```bash
+╷
+│ Error: could not download chart: unexpected status from HEAD request to https://public.ecr.aws/v2/karpenter/karpenter-crd/manifests/1.5.3: 403 Forbidden
+│ 
+│   with helm_release.karpenter-crd,
+│   on main.tf line 259, in resource "helm_release" "karpenter-crd":
+│  259: resource "helm_release" "karpenter-crd" {
+│ 
+╵
+```
+You may need to remove credentials to the AWS Public ECR:
+```bash
+docker logout public.ecr.aws
+helm registry logout public.ecr.aws
+```
+
 ### Troubleshooting Failure to Destroy
 The `terraform destroy` may fail if there are resources remaining in the namespace. If the resources are not deleted from the namespace the destroy may fail because of [this issue](https://medium.com/@cristi.posoiu/this-is-not-the-right-way-especially-in-a-production-environment-190ff670bc62).
 
