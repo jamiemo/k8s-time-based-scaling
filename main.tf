@@ -133,12 +133,13 @@ module "eks" {
       iam_role_use_name_prefix   = false                   # Backwards compat
       use_custom_launch_template = false                   # Backwards compat
       ami_type                   = "BOTTLEROCKET_x86_64"
+      create_launch_template     = true 
 
       instance_types = ["t3.large"]
 
       min_size     = 1
       max_size     = 2
-      desired_size = 1
+      desired_size = 2
 
       labels = {
         loadtype = "baseload"
@@ -201,6 +202,11 @@ module "eks_blueprints_kubernetes_addons" {
     kubecost_kubecost = {
       most_recent = true
     }
+
+    eks-pod-identity-agent = {
+      before_compute = true
+    }
+
   }
 
   # karpenter_node                             = module.karpenter.instance_profile_name
