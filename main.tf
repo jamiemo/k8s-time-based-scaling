@@ -117,50 +117,6 @@ module "eks" {
       cidr_blocks      = ["0.0.0.0/0"]
       ipv6_cidr_blocks = ["::/0"]
     }
-
-    # Allows Control Plane Nodes to talk to Worker nodes on Karpenter ports.
-    # This can be extended further to specific port based on the requirement for others Add-on e.g., metrics-server 4443, spark-operator 8080, etc.
-    # Change this according to your security requirements if needed
-    ingress_nodes_karpenter_port = {
-      description                   = "Cluster API to Nodegroup for Karpenter"
-      protocol                      = "tcp"
-      from_port                     = 8443
-      to_port                       = 8443
-      type                          = "ingress"
-      source_cluster_security_group = true
-    }
-
-    ingress_nodes_matrics_server_port = {
-      description                   = "Cluster API to Nodegroup for Metrics Server"
-      protocol                      = "tcp"
-      from_port                     = 4443
-      to_port                       = 4443
-      type                          = "ingress"
-      source_cluster_security_group = true
-    }
-
-    ingress_allow_alb_webhook_access_from_control_plane = {
-      description                   = "Allow access from control plane to webhook port of AWS load balancer controller"
-      protocol                      = "tcp"
-      from_port                     = 9443
-      to_port                       = 9443
-      type                          = "ingress"
-      source_cluster_security_group = true
-    }
-  }
-
-  security_group_additional_rules = {
-    ingress_nodes_karpenter_ports_tcp = {
-      description                = "Karpenter readiness"
-      protocol                   = "tcp"
-      from_port                  = 8000
-      # https://karpenter.sh/docs/upgrading/upgrade-guide/#upgrading-to-0370
-      # Starting with 0.37.3 Karpenter has enabled conversion webhooks by default to improve the v1 migration experience. 
-      # If working with a cluster with a network policy that blocks Ingress, ports 8000, 8001, 8081, 8443 will need to be allowlisted.
-      to_port                    = 8443
-      type                       = "ingress"
-      source_node_security_group = true
-    }
   }
 
   # Add karpenter.sh/discovery tag so that we can use this as securityGroupSelector in karpenter provisioner
@@ -201,128 +157,6 @@ module "eks" {
   }
 }
 
-# module "eks_blueprints" {
-#   source = "github.com/aws-ia/terraform-aws-eks-blueprints?ref=v4.32.1"
-
-#   cluster_name    = local.name
-#   cluster_version = "1.33"
-
-#   vpc_id             = module.vpc.vpc_id
-#   private_subnet_ids = module.vpc.private_subnets
-
-#   #----------------------------------------------------------------------------------------------------------#
-#   # Security groups used in this module created by the upstream modules terraform-aws-eks (https://github.com/terraform-aws-modules/terraform-aws-eks).
-#   #   Upstream module implemented Security groups based on the best practices doc https://docs.aws.amazon.com/eks/latest/userguide/sec-group-reqs.html.
-#   #   So, by default the security groups are restrictive. Users needs to enable rules for specific ports required for App requirement or Add-ons
-#   #   See the notes below for each rule used in these examples
-#   #----------------------------------------------------------------------------------------------------------#
-#   node_security_group_additional_rules = {
-#     # Extend node-to-node security group rules. Recommended and required for the Add-ons
-#     ingress_self_all = {
-#       description = "Node to node all ports/protocols"
-#       protocol    = "-1"
-#       from_port   = 0
-#       to_port     = 0
-#       type        = "ingress"
-#       self        = true
-#     }
-#     # Recommended outbound traffic for Node groups
-#     egress_all = {
-#       description      = "Node all egress"
-#       protocol         = "-1"
-#       from_port        = 0
-#       to_port          = 0
-#       type             = "egress"
-#       cidr_blocks      = ["0.0.0.0/0"]
-#       ipv6_cidr_blocks = ["::/0"]
-#     }
-
-#     # Allows Control Plane Nodes to talk to Worker nodes on Karpenter ports.
-#     # This can be extended further to specific port based on the requirement for others Add-on e.g., metrics-server 4443, spark-operator 8080, etc.
-#     # Change this according to your security requirements if needed
-#     ingress_nodes_karpenter_port = {
-#       description                   = "Cluster API to Nodegroup for Karpenter"
-#       protocol                      = "tcp"
-#       from_port                     = 8443
-#       to_port                       = 8443
-#       type                          = "ingress"
-#       source_cluster_security_group = true
-#     }
-
-#     ingress_nodes_matrics_server_port = {
-#       description                   = "Cluster API to Nodegroup for Metrics Server"
-#       protocol                      = "tcp"
-#       from_port                     = 4443
-#       to_port                       = 4443
-#       type                          = "ingress"
-#       source_cluster_security_group = true
-#     }
-
-#     ingress_allow_alb_webhook_access_from_control_plane = {
-#       description                   = "Allow access from control plane to webhook port of AWS load balancer controller"
-#       protocol                      = "tcp"
-#       from_port                     = 9443
-#       to_port                       = 9443
-#       type                          = "ingress"
-#       source_cluster_security_group = true
-#     }
-#   }
-
-#   cluster_security_group_additional_rules = {
-#     ingress_nodes_karpenter_ports_tcp = {
-#       description                = "Karpenter readiness"
-#       protocol                   = "tcp"
-#       from_port                  = 8000
-#       # https://karpenter.sh/docs/upgrading/upgrade-guide/#upgrading-to-0370
-#       # Starting with 0.37.3 Karpenter has enabled conversion webhooks by default to improve the v1 migration experience. 
-#       # If working with a cluster with a network policy that blocks Ingress, ports 8000, 8001, 8081, 8443 will need to be allowlisted.
-#       to_port                    = 8443
-#       type                       = "ingress"
-#       source_node_security_group = true
-#     }
-#   }
-#   # Add karpenter.sh/discovery tag so that we can use this as securityGroupSelector in karpenter provisioner
-#   node_security_group_tags = {
-#     "karpenter.sh/discovery/${local.name}" = local.name
-#   }
-
-#   # EKS MANAGED NODE GROUPS
-#   # We recommend to have a MNG to place your critical workloads and add-ons
-#   # Then rely on Karpenter to scale your workloads
-#   # You can also make uses on nodeSelector and Taints/tolerations to spread workloads on MNG or Karpenter provisioners
-#   managed_node_groups = {
-#     managed_ondemand = {
-#       node_group_name = "managed-ondemand"
-#       instance_types  = ["t3.large"]
-#       # https://docs.aws.amazon.com/eks/latest/userguide/al2023.html
-#       ami_type        = "BOTTLEROCKET_x86_64"
-
-#       subnet_ids   = module.vpc.private_subnets
-#       max_size     = 4
-#       desired_size = 2
-#       min_size     = 1
-#       update_config = [{
-#         max_unavailable_percentage = 30
-#       }]
-
-#       k8s_labels = {
-#         loadtype = "baseload"
-#       }
-
-#       # Launch template configuration
-#       create_launch_template = true              # false will use the default launch template
-#       launch_template_os     = "bottlerocket" # amazonlinux2eks or bottlerocket
-#     }
-#   }
-
-#   iam_role_additional_policies = [
-#     "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly",
-#     "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
-#   ]
-
-#   tags = local.tags
-# }
-
 module "eks_blueprints_kubernetes_addons" {
   source  = "aws-ia/eks-blueprints-addons/aws"
   version = "~> 1.24.3"
@@ -336,15 +170,6 @@ module "eks_blueprints_kubernetes_addons" {
   # aws_efs_csi_driver_irsa_policies     = [resource.aws_iam_policy.aws_efs_csi_driver_tags.arn]
   enable_metrics_server                = true
   enable_aws_load_balancer_controller  = false
- 
-  # enable_karpenter                     = false
-  # enable_kubecost                      = false
-  # enable_metrics_server                = true
-  # enable_amazon_eks_coredns            = true
-  # enable_amazon_eks_kube_proxy         = true
-  # enable_amazon_eks_vpc_cni            = true
-  # enable_amazon_eks_aws_ebs_csi_driver = true
-
 
   eks_addons = {
     # Amazon EKS add-ons
@@ -376,10 +201,6 @@ module "eks_blueprints_kubernetes_addons" {
     kubecost_kubecost = {
       most_recent = true
     }
-
-    # teleport_teleport = {
-    #   most_recent = true
-    # }
   }
 
   # karpenter_node                             = module.karpenter.instance_profile_name
@@ -407,52 +228,6 @@ module "eks_blueprints_kubernetes_addons" {
   tags = local.tags
 
 }
-
-# module "eks_blueprints_kubernetes_addons" {
-#   source = "github.com/aws-ia/terraform-aws-eks-blueprints//modules/kubernetes-addons?ref=v4.32.1"
-
-#   eks_cluster_id       = module.eks.cluster_id
-#   eks_cluster_endpoint = module.eks.cluster_endpoint
-#   eks_oidc_provider    = module.eks_blueprints.oidc_provider
-#   eks_cluster_version  = module.eks_blueprints.eks_cluster_version
-
-#   enable_aws_efs_csi_driver            = true
-#   aws_efs_csi_driver_irsa_policies     = [resource.aws_iam_policy.aws_efs_csi_driver_tags.arn]
-#   enable_kube_state_metrics            = true
-#   enable_aws_load_balancer_controller  = false
- 
-#   enable_karpenter                     = false
-#   enable_kubecost                      = false
-#   enable_metrics_server                = true
-#   enable_amazon_eks_coredns            = true
-#   enable_amazon_eks_kube_proxy         = true
-#   enable_amazon_eks_vpc_cni            = true
-#   enable_amazon_eks_aws_ebs_csi_driver = true
-
-#   karpenter_node_iam_instance_profile        = module.karpenter.instance_profile_name
-#   karpenter_enable_spot_termination_handling = true
-
-#   karpenter_helm_config = {
-#     namespace        = kubernetes_namespace.karpenter.metadata[0].name
-#     create_namespace = false
-#     # Collection merge does not work as expected
-#     # https://github.com/hashicorp/terraform/issues/24236
-#     values = [
-#       <<-EOT
-#           settings:
-#             aws:
-#               clusterName: ${module.eks.cluster_id}
-#               clusterEndpoint: ${module.eks.cluster_endpoint}
-#               defaultInstanceProfile: ${module.karpenter.instance_profile_name}
-#               interruptionQueueName: ${module.karpenter.queue_arn}
-#           nodeSelector:
-#             loadtype: baseload
-#         EOT
-#     ]
-#   }
-
-#   tags = local.tags
-# }
 
 # EFS CSI
 # https://aws.amazon.com/blogs/storage/persistent-storage-for-kubernetes/
