@@ -2,6 +2,10 @@ resource "kubernetes_namespace" "nginx-demo" {
   metadata {
     name      = local.demo_namespace
   } 
+  depends_on = [
+    module.eks_blueprints_kubernetes_addons,
+    module.eks_blueprints.managed_node_groups
+  ]
 }
 
 resource "kubernetes_deployment" "nginx_demo" {
@@ -56,7 +60,8 @@ resource "kubernetes_deployment" "nginx_demo" {
     }
   }
   depends_on = [
-    module.eks_blueprints_kubernetes_addons
+    module.eks_blueprints_kubernetes_addons,
+    module.eks_blueprints.managed_node_groups
   ]
   timeouts {
     create = "5m"
@@ -78,6 +83,10 @@ resource "kubernetes_service" "nginx_demo" {
     }
     type = "LoadBalancer"
   }
+  depends_on = [
+    module.eks_blueprints_kubernetes_addons,
+    module.eks_blueprints.managed_node_groups
+  ]
 }
 
 resource "kubernetes_horizontal_pod_autoscaler_v2" "nginx_demo" {
@@ -104,4 +113,8 @@ resource "kubernetes_horizontal_pod_autoscaler_v2" "nginx_demo" {
       }
     }
   }
+  depends_on = [
+    module.eks_blueprints_kubernetes_addons,
+    module.eks_blueprints.managed_node_groups
+  ]
 }
