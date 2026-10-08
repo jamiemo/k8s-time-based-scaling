@@ -3,44 +3,53 @@ provider "aws" {
 }
 
 provider "kubernetes" {
-  host                   = module.eks_blueprints.eks_cluster_endpoint
-  cluster_ca_certificate = base64decode(module.eks_blueprints.eks_cluster_certificate_authority_data)
-  exec {
-    api_version = "client.authentication.k8s.io/v1beta1"
-    command     = "aws"
-    # This requires the awscli to be installed locally where Terraform is executed
-    args = ["eks", "get-token", "--cluster-name", module.eks_blueprints.eks_cluster_id]
-  }
+  config_path = "~/.kube/config"
+  # host                   = module.eks.cluster_endpoint
+  # cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
+  # exec {
+  #   api_version = "client.authentication.k8s.io/v1beta1"
+  #   command     = "aws"
+  #   # This requires the awscli to be installed locally where Terraform is executed
+  #   args = ["eks", "get-token", "--cluster-name", module.eks.cluster_id]
+  # }
 }
 
 provider "helm" {
-  kubernetes {
-    host                   = module.eks_blueprints.eks_cluster_endpoint
-    cluster_ca_certificate = base64decode(module.eks_blueprints.eks_cluster_certificate_authority_data)
-    exec {
-      api_version = "client.authentication.k8s.io/v1beta1"
-      command     = "aws"
-      # This requires the awscli to be installed locally where Terraform is executed
-      args = ["eks", "get-token", "--cluster-name", module.eks_blueprints.eks_cluster_id]
-    }
+  # kubernetes = {
+  #   host                   = module.eks.cluster_endpoint
+  #   cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
+  #   token                  = module.eks.auth.token
+  # }
+
+  kubernetes = {
+    config_path = "~/.kube/config"
+    # host                   = module.eks.cluster_endpoint
+    # cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
+    # exec = {
+    #   api_version = "client.authentication.k8s.io/v1beta1"
+    #   command     = "aws"
+    #   # This requires the awscli to be installed locally where Terraform is executed
+    #   args = ["eks", "get-token", "--cluster-name", module.eks.cluster_id]
+    # }
   }
 }
 
 provider "kubectl" {
-  apply_retry_count      = 10
-  host                   = module.eks_blueprints.eks_cluster_endpoint
-  cluster_ca_certificate = base64decode(module.eks_blueprints.eks_cluster_certificate_authority_data)
-  load_config_file       = false
-  exec {
-    api_version = "client.authentication.k8s.io/v1beta1"
-    command     = "aws"
-    # This requires the awscli to be installed locally where Terraform is executed
-    args = ["eks", "get-token", "--cluster-name", module.eks_blueprints.eks_cluster_id]
-  }
+  config_path = "~/.kube/config"
+  # apply_retry_count      = 10
+  # host                   = module.eks.cluster_endpoint
+  # cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
+  # load_config_file       = false
+  # exec {
+  #   api_version = "client.authentication.k8s.io/v1beta1"
+  #   command     = "aws"
+  #   # This requires the awscli to be installed locally where Terraform is executed
+  #   args = ["eks", "get-token", "--cluster-name", module.eks.cluster_id]
+  # }
 }
 
 data "aws_eks_cluster_auth" "this" {
-  name = module.eks_blueprints.eks_cluster_id
+  name = module.eks.cluster_name
 }
 
 data "aws_availability_zones" "available" {}
@@ -53,14 +62,34 @@ data "aws_region" "current" {
 # EKS Blueprints
 #---------------------------------------------------------------
 
-module "eks_blueprints" {
-  source = "github.com/aws-ia/terraform-aws-eks-blueprints?ref=v4.32.1"
+module "eks" {
+  source  = "terraform-aws-modules/eks/aws"
+  version = "~> 21.26.0"
 
-  cluster_name    = local.name
-  cluster_version = "1.33"
+  name                   = local.name
+  kubernetes_version     = "1.33"
+  endpoint_public_access = true # Backwards compat
+  enabled_log_types      = ["api", "audit", "authenticator", "controllerManager", "scheduler"] # Backwards compat
 
-  vpc_id             = module.vpc.vpc_id
-  private_subnet_ids = module.vpc.private_subnets
+  iam_role_name            = "${local.name}-cluster-role" # Backwards compat
+  iam_role_use_name_prefix = false                        # Backwards compat
+
+  kms_key_aliases = [local.name] # Backwards compat
+
+  vpc_id     = module.vpc.vpc_id
+  subnet_ids = module.vpc.private_subnets
+
+  authentication_mode = "CONFIG_MAP" # Backwards compat
+  endpoint_private_access = false # Backwards compat
+  # manage_aws_auth_configmap = true
+
+  # aws_auth_roles = [
+  #   {
+  #     rolearn  = data.aws_caller_identity.current.arn
+  #     username = "me"
+  #     groups   = ["system:masters"]
+  #   },
+  # ]
 
   #----------------------------------------------------------------------------------------------------------#
   # Security groups used in this module created by the upstream modules terraform-aws-eks (https://github.com/terraform-aws-modules/terraform-aws-eks).
@@ -120,7 +149,7 @@ module "eks_blueprints" {
     }
   }
 
-  cluster_security_group_additional_rules = {
+  security_group_additional_rules = {
     ingress_nodes_karpenter_ports_tcp = {
       description                = "Karpenter readiness"
       protocol                   = "tcp"
@@ -133,93 +162,297 @@ module "eks_blueprints" {
       source_node_security_group = true
     }
   }
+
   # Add karpenter.sh/discovery tag so that we can use this as securityGroupSelector in karpenter provisioner
   node_security_group_tags = {
     "karpenter.sh/discovery/${local.name}" = local.name
   }
 
-  # EKS MANAGED NODE GROUPS
-  # We recommend to have a MNG to place your critical workloads and add-ons
-  # Then rely on Karpenter to scale your workloads
-  # You can also make uses on nodeSelector and Taints/tolerations to spread workloads on MNG or Karpenter provisioners
-  managed_node_groups = {
+  eks_managed_node_groups = {
     managed_ondemand = {
-      node_group_name = "managed-ondemand"
-      instance_types  = ["t3.large"]
-      # https://docs.aws.amazon.com/eks/latest/userguide/al2023.html
-      ami_type        = "BOTTLEROCKET_x86_64"
+      node_group_name            = "managed-ondemand"      # Backwards compat
+      node_group_name_prefix     = "managed-ondemand-"     # Backwards compat
 
-      subnet_ids   = module.vpc.private_subnets
-      max_size     = 4
-      desired_size = 2
+      iam_role_name              = "${local.name}-managed-ondemand" # Backwards compat
+      iam_role_use_name_prefix   = false                   # Backwards compat
+      use_custom_launch_template = false                   # Backwards compat
+      ami_type                   = "BOTTLEROCKET_x86_64"
+
+      instance_types = ["t3.large"]
+
       min_size     = 1
-      update_config = [{
-        max_unavailable_percentage = 30
-      }]
+      max_size     = 2
+      desired_size = 1
 
-      k8s_labels = {
+      labels = {
         loadtype = "baseload"
       }
-
-      # Launch template configuration
-      create_launch_template = true              # false will use the default launch template
-      launch_template_os     = "bottlerocket" # amazonlinux2eks or bottlerocket
     }
   }
 
-  iam_role_additional_policies = [
-    "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly",
-    "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
-  ]
-
-  tags = local.tags
-}
-
-module "eks_blueprints_kubernetes_addons" {
-  source = "github.com/aws-ia/terraform-aws-eks-blueprints//modules/kubernetes-addons?ref=v4.32.1"
-
-  eks_cluster_id       = module.eks_blueprints.eks_cluster_id
-  eks_cluster_endpoint = module.eks_blueprints.eks_cluster_endpoint
-  eks_oidc_provider    = module.eks_blueprints.oidc_provider
-  eks_cluster_version  = module.eks_blueprints.eks_cluster_version
-
-  enable_aws_efs_csi_driver            = true
-  aws_efs_csi_driver_irsa_policies     = [resource.aws_iam_policy.aws_efs_csi_driver_tags.arn]
-  enable_kube_state_metrics            = true
-  enable_aws_load_balancer_controller  = false
- 
-  enable_karpenter                     = false
-  enable_kubecost                      = false
-  enable_metrics_server                = true
-  enable_amazon_eks_coredns            = true
-  enable_amazon_eks_kube_proxy         = true
-  enable_amazon_eks_vpc_cni            = true
-  enable_amazon_eks_aws_ebs_csi_driver = true
-
-  karpenter_node_iam_instance_profile        = module.karpenter.instance_profile_name
-  karpenter_enable_spot_termination_handling = true
-
-  karpenter_helm_config = {
-    namespace        = kubernetes_namespace.karpenter.metadata[0].name
-    create_namespace = false
-    # Collection merge does not work as expected
-    # https://github.com/hashicorp/terraform/issues/24236
-    values = [
-      <<-EOT
-          settings:
-            aws:
-              clusterName: ${module.eks_blueprints.eks_cluster_id}
-              clusterEndpoint: ${module.eks_blueprints.eks_cluster_endpoint}
-              defaultInstanceProfile: ${module.karpenter.instance_profile_name}
-              interruptionQueueName: ${module.karpenter.queue_arn}
-          nodeSelector:
-            loadtype: baseload
-        EOT
-    ]
+  iam_role_additional_policies = {
+    "AmazonEC2ContainerRegistryReadOnly" = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly",
+    "AmazonEBSCSIDriverPolicy" = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
   }
 
-  tags = local.tags
+  tags = {
+    Blueprint  = local.name
+    GithubRepo = "https://registry.terraform.io/modules/terraform-aws-modules/eks/aws/latest"
+  }
 }
+
+# module "eks_blueprints" {
+#   source = "github.com/aws-ia/terraform-aws-eks-blueprints?ref=v4.32.1"
+
+#   cluster_name    = local.name
+#   cluster_version = "1.33"
+
+#   vpc_id             = module.vpc.vpc_id
+#   private_subnet_ids = module.vpc.private_subnets
+
+#   #----------------------------------------------------------------------------------------------------------#
+#   # Security groups used in this module created by the upstream modules terraform-aws-eks (https://github.com/terraform-aws-modules/terraform-aws-eks).
+#   #   Upstream module implemented Security groups based on the best practices doc https://docs.aws.amazon.com/eks/latest/userguide/sec-group-reqs.html.
+#   #   So, by default the security groups are restrictive. Users needs to enable rules for specific ports required for App requirement or Add-ons
+#   #   See the notes below for each rule used in these examples
+#   #----------------------------------------------------------------------------------------------------------#
+#   node_security_group_additional_rules = {
+#     # Extend node-to-node security group rules. Recommended and required for the Add-ons
+#     ingress_self_all = {
+#       description = "Node to node all ports/protocols"
+#       protocol    = "-1"
+#       from_port   = 0
+#       to_port     = 0
+#       type        = "ingress"
+#       self        = true
+#     }
+#     # Recommended outbound traffic for Node groups
+#     egress_all = {
+#       description      = "Node all egress"
+#       protocol         = "-1"
+#       from_port        = 0
+#       to_port          = 0
+#       type             = "egress"
+#       cidr_blocks      = ["0.0.0.0/0"]
+#       ipv6_cidr_blocks = ["::/0"]
+#     }
+
+#     # Allows Control Plane Nodes to talk to Worker nodes on Karpenter ports.
+#     # This can be extended further to specific port based on the requirement for others Add-on e.g., metrics-server 4443, spark-operator 8080, etc.
+#     # Change this according to your security requirements if needed
+#     ingress_nodes_karpenter_port = {
+#       description                   = "Cluster API to Nodegroup for Karpenter"
+#       protocol                      = "tcp"
+#       from_port                     = 8443
+#       to_port                       = 8443
+#       type                          = "ingress"
+#       source_cluster_security_group = true
+#     }
+
+#     ingress_nodes_matrics_server_port = {
+#       description                   = "Cluster API to Nodegroup for Metrics Server"
+#       protocol                      = "tcp"
+#       from_port                     = 4443
+#       to_port                       = 4443
+#       type                          = "ingress"
+#       source_cluster_security_group = true
+#     }
+
+#     ingress_allow_alb_webhook_access_from_control_plane = {
+#       description                   = "Allow access from control plane to webhook port of AWS load balancer controller"
+#       protocol                      = "tcp"
+#       from_port                     = 9443
+#       to_port                       = 9443
+#       type                          = "ingress"
+#       source_cluster_security_group = true
+#     }
+#   }
+
+#   cluster_security_group_additional_rules = {
+#     ingress_nodes_karpenter_ports_tcp = {
+#       description                = "Karpenter readiness"
+#       protocol                   = "tcp"
+#       from_port                  = 8000
+#       # https://karpenter.sh/docs/upgrading/upgrade-guide/#upgrading-to-0370
+#       # Starting with 0.37.3 Karpenter has enabled conversion webhooks by default to improve the v1 migration experience. 
+#       # If working with a cluster with a network policy that blocks Ingress, ports 8000, 8001, 8081, 8443 will need to be allowlisted.
+#       to_port                    = 8443
+#       type                       = "ingress"
+#       source_node_security_group = true
+#     }
+#   }
+#   # Add karpenter.sh/discovery tag so that we can use this as securityGroupSelector in karpenter provisioner
+#   node_security_group_tags = {
+#     "karpenter.sh/discovery/${local.name}" = local.name
+#   }
+
+#   # EKS MANAGED NODE GROUPS
+#   # We recommend to have a MNG to place your critical workloads and add-ons
+#   # Then rely on Karpenter to scale your workloads
+#   # You can also make uses on nodeSelector and Taints/tolerations to spread workloads on MNG or Karpenter provisioners
+#   managed_node_groups = {
+#     managed_ondemand = {
+#       node_group_name = "managed-ondemand"
+#       instance_types  = ["t3.large"]
+#       # https://docs.aws.amazon.com/eks/latest/userguide/al2023.html
+#       ami_type        = "BOTTLEROCKET_x86_64"
+
+#       subnet_ids   = module.vpc.private_subnets
+#       max_size     = 4
+#       desired_size = 2
+#       min_size     = 1
+#       update_config = [{
+#         max_unavailable_percentage = 30
+#       }]
+
+#       k8s_labels = {
+#         loadtype = "baseload"
+#       }
+
+#       # Launch template configuration
+#       create_launch_template = true              # false will use the default launch template
+#       launch_template_os     = "bottlerocket" # amazonlinux2eks or bottlerocket
+#     }
+#   }
+
+#   iam_role_additional_policies = [
+#     "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly",
+#     "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
+#   ]
+
+#   tags = local.tags
+# }
+
+module "eks_blueprints_kubernetes_addons" {
+  source  = "aws-ia/eks-blueprints-addons/aws"
+  version = "~> 1.24.3"
+
+  cluster_name      = module.eks.cluster_name
+  cluster_endpoint  = module.eks.cluster_endpoint
+  cluster_version   = module.eks.cluster_version
+  oidc_provider_arn = module.eks.oidc_provider_arn
+
+  enable_aws_efs_csi_driver            = true
+  # aws_efs_csi_driver_irsa_policies     = [resource.aws_iam_policy.aws_efs_csi_driver_tags.arn]
+  enable_metrics_server                = true
+  enable_aws_load_balancer_controller  = false
+ 
+  # enable_karpenter                     = false
+  # enable_kubecost                      = false
+  # enable_metrics_server                = true
+  # enable_amazon_eks_coredns            = true
+  # enable_amazon_eks_kube_proxy         = true
+  # enable_amazon_eks_vpc_cni            = true
+  # enable_amazon_eks_aws_ebs_csi_driver = true
+
+
+  eks_addons = {
+    # Amazon EKS add-ons
+    aws-ebs-csi-driver = {
+      most_recent              = true
+      # service_account_role_arn = module.ebs_csi_driver_irsa.iam_role_arn
+    }
+
+    coredns = {
+      most_recent = true
+    }
+
+    vpc-cni = {
+      most_recent              = true
+      # service_account_role_arn = module.vpc_cni_irsa.iam_role_arn
+    }
+
+    # aws_efs_csi_driver = {}
+    # aws_efs_csi_driver = {
+    #   most_recent              = true
+    #   role_policies = [resource.aws_iam_policy.aws_efs_csi_driver_tags.arn]
+    # }
+
+    kube-proxy = {
+      most_recent              = true
+    }
+
+    # Third party add-ons via AWS Marketplace
+    kubecost_kubecost = {
+      most_recent = true
+    }
+
+    # teleport_teleport = {
+    #   most_recent = true
+    # }
+  }
+
+  # karpenter_node                             = module.karpenter.instance_profile_name
+  # karpenter_enable_spot_termination          = true
+
+  # karpenter_helm_config = {
+  #   namespace        = kubernetes_namespace.karpenter.metadata[0].name
+  #   create_namespace = false
+  #   # Collection merge does not work as expected
+  #   # https://github.com/hashicorp/terraform/issues/24236
+  #   values = [
+  #     <<-EOT
+  #         settings:
+  #           aws:
+  #             clusterName: ${module.eks.cluster_id}
+  #             clusterEndpoint: ${module.eks.cluster_endpoint}
+  #             defaultInstanceProfile: ${module.karpenter.instance_profile_name}
+  #             interruptionQueueName: ${module.karpenter.queue_arn}
+  #         nodeSelector:
+  #           loadtype: baseload
+  #       EOT
+  #   ]
+  # }
+
+  tags = local.tags
+
+}
+
+# module "eks_blueprints_kubernetes_addons" {
+#   source = "github.com/aws-ia/terraform-aws-eks-blueprints//modules/kubernetes-addons?ref=v4.32.1"
+
+#   eks_cluster_id       = module.eks.cluster_id
+#   eks_cluster_endpoint = module.eks.cluster_endpoint
+#   eks_oidc_provider    = module.eks_blueprints.oidc_provider
+#   eks_cluster_version  = module.eks_blueprints.eks_cluster_version
+
+#   enable_aws_efs_csi_driver            = true
+#   aws_efs_csi_driver_irsa_policies     = [resource.aws_iam_policy.aws_efs_csi_driver_tags.arn]
+#   enable_kube_state_metrics            = true
+#   enable_aws_load_balancer_controller  = false
+ 
+#   enable_karpenter                     = false
+#   enable_kubecost                      = false
+#   enable_metrics_server                = true
+#   enable_amazon_eks_coredns            = true
+#   enable_amazon_eks_kube_proxy         = true
+#   enable_amazon_eks_vpc_cni            = true
+#   enable_amazon_eks_aws_ebs_csi_driver = true
+
+#   karpenter_node_iam_instance_profile        = module.karpenter.instance_profile_name
+#   karpenter_enable_spot_termination_handling = true
+
+#   karpenter_helm_config = {
+#     namespace        = kubernetes_namespace.karpenter.metadata[0].name
+#     create_namespace = false
+#     # Collection merge does not work as expected
+#     # https://github.com/hashicorp/terraform/issues/24236
+#     values = [
+#       <<-EOT
+#           settings:
+#             aws:
+#               clusterName: ${module.eks.cluster_id}
+#               clusterEndpoint: ${module.eks.cluster_endpoint}
+#               defaultInstanceProfile: ${module.karpenter.instance_profile_name}
+#               interruptionQueueName: ${module.karpenter.queue_arn}
+#           nodeSelector:
+#             loadtype: baseload
+#         EOT
+#     ]
+#   }
+
+#   tags = local.tags
+# }
 
 # EFS CSI
 # https://aws.amazon.com/blogs/storage/persistent-storage-for-kubernetes/
@@ -251,10 +484,10 @@ resource "kubernetes_storage_class_v1" "efs" {
 
 module "efs" {
   source  = "terraform-aws-modules/efs/aws"
-  version = "~> 1.0"
+  version = "~> 2.2.1"
 
-  name                 = "${module.eks_blueprints.eks_cluster_id}-efs"
-  creation_token       = "${module.eks_blueprints.eks_cluster_id}-efs"
+  name                 = "${module.eks.cluster_name}-efs"
+  creation_token       = "${module.eks.cluster_name}-efs"
   encrypted            = true
   performance_mode     = "generalPurpose"
   throughput_mode      = "bursting"
@@ -265,14 +498,14 @@ module "efs" {
   mount_targets = {
     for k, v in zipmap(local.azs, module.vpc.private_subnets) : k => { subnet_id = v }
   }
-  security_group_name        = "${module.eks_blueprints.eks_cluster_id}-efs"
-  security_group_description = "${module.eks_blueprints.eks_cluster_id} EFS CSI security group"
+  security_group_name        = "${module.eks.cluster_name}-efs"
+  security_group_description = "${module.eks.cluster_name} EFS CSI security group"
   security_group_vpc_id      = module.vpc.vpc_id
-  security_group_rules = {
+  security_group_ingress_rules = {
     vpc = {
-      # Relying on the defaults provdied for EFS/NFS (2049/TCP + ingress)
+      # relying on the defaults provided for EFS/NFS (2049/TCP + ingress)
       description = "NFS ingress from VPC private subnets"
-      cidr_blocks = [for k, v in local.azs : cidrsubnet(local.vpc_cidr, 8, k + 10)]
+      cidr_ipv4   = local.vpc_cidr
     }
   }
 
@@ -282,7 +515,7 @@ module "efs" {
 # Workaround for incomplete EFS IAM policy
 # https://github.com/aws-ia/terraform-aws-eks-blueprints/issues/1572
 resource "aws_iam_policy" "aws_efs_csi_driver_tags" {
-  name        = "${module.eks_blueprints.eks_cluster_id}-efs-csi-tag-policy"
+  name        = "${module.eks.cluster_name}-efs-csi-tag-policy"
   description = "IAM Policy for AWS EFS CSI Driver Tags"
   policy      = data.aws_iam_policy_document.aws_efs_csi_driver_tags.json
   tags        = local.tags
@@ -340,10 +573,10 @@ resource "kubernetes_namespace" "karpenter" {
 
 module "karpenter" {
   source  = "terraform-aws-modules/eks/aws//modules/karpenter"
-  version = "~> 19.21.0"
+  version = "~> 21.26.0"
 
-  cluster_name           = module.eks_blueprints.eks_cluster_id
-  irsa_oidc_provider_arn = module.eks_blueprints.eks_oidc_provider_arn
+  cluster_name           = module.eks.cluster_name
+  # irsa_oidc_provider_arn = module.eks.oidc_provider.arn
 
   # Reuse the managed node IAM role to avoid updating the aws-auth configmap until there are better methods in later versions
   # https://github.com/terraform-aws-modules/terraform-aws-eks/tree/v20.20.0/modules/aws-auth
@@ -351,17 +584,15 @@ module "karpenter" {
   # enable_pod_identity = false
   # https://aws.amazon.com/blogs/containers/amazon-eks-pod-identity-a-new-way-for-applications-on-eks-to-obtain-iam-credentials/
 
-  create_iam_role                            = false
-  iam_role_arn                               = module.eks_blueprints.managed_node_group_iam_role_arns[0]
-  create_irsa                                = true
-  irsa_tags                                  = local.tags
-  enable_karpenter_instance_profile_creation = true
+  create_iam_role                            = true
+  node_iam_role_name                         = module.eks.node_iam_role_name
+  create_pod_identity_association            = true
+  tags                                       = local.tags
+  create_instance_profile                    = true
   enable_spot_termination                    = true
-  iam_role_additional_policies = {
+  node_iam_role_additional_policies = {
     "AmazonEC2ContainerRegistryReadOnly" = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
   }
-
-  tags = local.tags
 }
 
 # https://karpenter.sh/v1.0/upgrading/upgrade-guide/#crd-upgrades
@@ -398,10 +629,10 @@ resource "helm_release" "karpenter" {
     serviceAccount:
       create: true
       annotations: 
-        eks.amazonaws.com/role-arn: ${module.karpenter.irsa_arn}
+        eks.amazonaws.com/role-arn: ${module.karpenter.iam_role_arn}
     settings:
-      clusterName: ${module.eks_blueprints.eks_cluster_id}
-      clusterEndpoint: ${module.eks_blueprints.eks_cluster_endpoint}
+      clusterName: ${module.eks.cluster_name}
+      clusterEndpoint: ${module.eks.cluster_endpoint}
       interruptionQueue: ${module.karpenter.queue_name}
     EOT
   ]
@@ -446,16 +677,16 @@ resource "kubectl_manifest" "karpenter_node_class" {
         httpProtocolIPv6: disabled
         httpPutResponseHopLimit: 2
         httpTokens: required
-      role: ${module.eks_blueprints.managed_node_group_iam_role_names[0]}
+      role: ${module.eks.eks_managed_node_groups.managed_ondemand.iam_role_arn}
       securityGroupSelectorTerms:
       - tags:
-          karpenter.sh/discovery/${module.eks_blueprints.eks_cluster_id}: ${module.eks_blueprints.eks_cluster_id}
+          karpenter.sh/discovery/${module.eks.cluster_name}: ${module.eks.cluster_name}
       subnetSelectorTerms:
       - tags:
-          Name: "${module.eks_blueprints.eks_cluster_id}-private-*"
+          Name: "${module.eks.cluster_name}-private-*"
       tags:
         Name: karpenter.sh/nodepool/default
-        karpenter.sh/discovery: ${module.eks_blueprints.eks_cluster_id}
+        karpenter.sh/discovery: ${module.eks.cluster_name}
   YAML
 
   depends_on = [
@@ -535,22 +766,40 @@ resource "kubernetes_namespace" "kubectl" {
   }
 }
 
-module "irsa" {
-  source                      = "github.com/aws-ia/terraform-aws-eks-blueprints//modules/irsa?ref=v4.32.1"
-  kubernetes_namespace        = kubernetes_namespace.kubectl.metadata[0].name
-  create_kubernetes_namespace = false
-  kubernetes_service_account  = "kubectl-hpa"
-  irsa_iam_policies           = [aws_iam_policy.hpa_irsa_policy.arn]
-  eks_cluster_id              = module.eks_blueprints.eks_cluster_id
-  eks_oidc_provider_arn       = module.eks_blueprints.eks_oidc_provider_arn
+# module "irsa" {
+#   source                      = "./irsa"
+#   kubernetes_namespace        = kubernetes_namespace.kubectl.metadata[0].name
+#   create_kubernetes_namespace = false
+#   kubernetes_service_account  = "kubectl-hpa"
+#   irsa_iam_policies           = [aws_iam_policy.hpa_irsa_policy.arn]
+#   eks_cluster_id              = module.eks.cluster_id
+#   eks_oidc_provider_arn       = module.eks.oidc_provider_arn
 
-  depends_on = [
-    module.eks_blueprints.managed_node_groups
-  ]
+#   depends_on = [
+#     module.eks.managed_node_groups
+#   ]
+
+#   tags = local.tags
+# }
+
+module "irsa" {
+  source = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts"
+
+  name = "kubectl-hpa"
+
+  policies = {
+    "kubectl-hpa" = aws_iam_policy.hpa_irsa_policy.arn
+  }
+
+  oidc_providers = {
+    this = {
+      provider_arn               = module.eks.oidc_provider_arn
+      namespace_service_accounts = ["${kubernetes_namespace.kubectl.metadata[0].name}:kubectl-hpa"]
+    }
+  }
 
   tags = local.tags
 }
-
 resource "aws_iam_policy" "hpa_irsa_policy" {
   name        = "${local.name}-kubectl-hpa-irsa-policy"
   path        = "/"
@@ -581,7 +830,7 @@ resource "aws_iam_policy" "hpa_irsa_policy" {
           "eks:ListIdentityProviderConfigs"
         ]
         Effect   = "Allow"
-        Resource = module.eks_blueprints.eks_cluster_arn
+        Resource = module.eks.cluster_id
       },
     ]
   })
@@ -599,7 +848,7 @@ resource "kubernetes_cluster_role_binding" "hpa_irsa_rolebinding" {
   subject {
     kind      = "ServiceAccount"
     name      = "kubectl-hpa"
-    namespace = module.irsa.namespace
+    namespace = kubernetes_namespace.kubectl.metadata[0].name
   }
 }
 
@@ -670,7 +919,7 @@ data "aws_ami" "bottlerocket" {
 
   filter {
     name   = "name"
-    values = ["bottlerocket-aws-k8s-${module.eks_blueprints.eks_cluster_version}-x86_64-*"]
+    values = ["bottlerocket-aws-k8s-${module.eks.cluster_version}-x86_64-*"]
   }
 }
 

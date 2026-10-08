@@ -11,7 +11,7 @@ module "nginx_scale_up" {
   min-replicas = 10
   kubectl-repo = aws_ecr_repository.cluster_repo.repository_url
   service-account-name = "kubectl-hpa"
-  service-account-namespace = module.irsa.namespace
+  service-account-namespace = kubernetes_namespace.kubectl.metadata[0].name
 }
 
 module "nginx_scale_down" {
@@ -23,5 +23,5 @@ module "nginx_scale_down" {
   min-replicas = 2
   kubectl-repo = aws_ecr_repository.cluster_repo.repository_url
   service-account-name = "kubectl-hpa"
-  service-account-namespace = module.irsa.namespace
+  service-account-namespace = kubernetes_namespace.kubectl.metadata[0].name
 }
