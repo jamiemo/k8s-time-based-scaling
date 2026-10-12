@@ -1,6 +1,6 @@
 locals {
   name   = basename(path.cwd)
-  region = data.aws_region.current.name
+  region = data.aws_region.current.region
 
   node_group_name = "managed-ondemand"
 
@@ -9,7 +9,7 @@ locals {
 
   tags = {
     Blueprint  = local.name
-    GithubRepo = "github.com/aws-ia/terraform-aws-eks-blueprints"
+    GithubRepo = "https://registry.terraform.io/modules/terraform-aws-modules/eks/aws/latest"
   }
 
   demo_name      = "nginx-demo"

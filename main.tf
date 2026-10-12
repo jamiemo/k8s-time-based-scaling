@@ -1,17 +1,42 @@
+data "aws_eks_cluster" "cluster" {
+  name = module.eks.cluster_name
+  depends_on = [
+    module.eks.cluster_name
+  ]
+}
+
+data "aws_eks_cluster_auth" "cluster" {
+  name = module.eks.cluster_name
+  depends_on = [
+    module.eks.cluster_name
+  ]
+}
+
+data "aws_availability_zones" "available" {}
+
+data "aws_region" "current" {
+  provider = aws.region
+}
+
 provider "aws" {
   alias = "region"
 }
 
 provider "kubernetes" {
-  config_path = "~/.kube/config"
-  # host                   = module.eks.cluster_endpoint
-  # cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
-  # exec {
-  #   api_version = "client.authentication.k8s.io/v1beta1"
-  #   command     = "aws"
-  #   # This requires the awscli to be installed locally where Terraform is executed
-  #   args = ["eks", "get-token", "--cluster-name", module.eks.cluster_id]
-  # }
+  # config_path = "~/.kube/config"
+
+  # host                   = data.aws_eks_cluster.cluster.endpoint
+  # cluster_ca_certificate = base64decode(data.aws_eks_cluster.cluster.certificate_authority[0].data)
+  # token                  = data.aws_eks_cluster_auth.cluster.token
+
+  host                   = data.aws_eks_cluster.cluster.endpoint
+  cluster_ca_certificate = base64decode(data.aws_eks_cluster.cluster.certificate_authority[0].data)
+  exec {
+    api_version = "client.authentication.k8s.io/v1beta1"
+    command     = "aws"
+    # This requires the awscli to be installed locally where Terraform is executed
+    args = ["eks", "get-token", "--cluster-name", data.aws_eks_cluster.cluster.id]
+  }
 }
 
 provider "helm" {
@@ -22,40 +47,41 @@ provider "helm" {
   # }
 
   kubernetes = {
-    config_path = "~/.kube/config"
-    # host                   = module.eks.cluster_endpoint
-    # cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
-    # exec = {
-    #   api_version = "client.authentication.k8s.io/v1beta1"
-    #   command     = "aws"
-    #   # This requires the awscli to be installed locally where Terraform is executed
-    #   args = ["eks", "get-token", "--cluster-name", module.eks.cluster_id]
-    # }
-  }
+    # config_path = "~/.kube/config"
+
+    # host                   = data.aws_eks_cluster.cluster.endpoint
+    # cluster_ca_certificate = base64decode(data.aws_eks_cluster.cluster.certificate_authority[0].data)
+    # token                  = data.aws_eks_cluster_auth.cluster.token
+  
+    host                   = data.aws_eks_cluster.cluster.endpoint
+    cluster_ca_certificate = base64decode(data.aws_eks_cluster.cluster.certificate_authority[0].data)
+    load_config_file       = false
+    exec = {
+        api_version = "client.authentication.k8s.io/v1beta1"
+        command     = "aws"
+        # This requires the awscli to be installed locally where Terraform is executed
+        args = ["eks", "get-token", "--cluster-name", data.aws_eks_cluster.cluster.id]
+      }
+    }
 }
 
 provider "kubectl" {
-  config_path = "~/.kube/config"
-  # apply_retry_count      = 10
-  # host                   = module.eks.cluster_endpoint
-  # cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
-  # load_config_file       = false
-  # exec {
-  #   api_version = "client.authentication.k8s.io/v1beta1"
-  #   command     = "aws"
-  #   # This requires the awscli to be installed locally where Terraform is executed
-  #   args = ["eks", "get-token", "--cluster-name", module.eks.cluster_id]
-  # }
-}
+  # config_path = "~/.kube/config"
 
-data "aws_eks_cluster_auth" "this" {
-  name = module.eks.cluster_name
-}
+  # host                   = data.aws_eks_cluster.cluster.endpoint
+  # cluster_ca_certificate = base64decode(data.aws_eks_cluster.cluster.certificate_authority[0].data)
+  # token                  = data.aws_eks_cluster_auth.cluster.token
 
-data "aws_availability_zones" "available" {}
-
-data "aws_region" "current" {
-  provider = aws.region
+  apply_retry_count      = 10
+  host                   = data.aws_eks_cluster.cluster.endpoint
+  cluster_ca_certificate = base64decode(data.aws_eks_cluster.cluster.certificate_authority[0].data)
+  load_config_file       = false
+  exec {
+    api_version = "client.authentication.k8s.io/v1beta1"
+    command     = "aws"
+    # This requires the awscli to be installed locally where Terraform is executed
+    args = ["eks", "get-token", "--cluster-name", data.aws_eks_cluster.cluster.id]
+  }
 }
 
 #---------------------------------------------------------------
@@ -79,8 +105,9 @@ module "eks" {
   vpc_id     = module.vpc.vpc_id
   subnet_ids = module.vpc.private_subnets
 
-  authentication_mode = "CONFIG_MAP" # Backwards compat
-  endpoint_private_access = false # Backwards compat
+  authentication_mode = "API_AND_CONFIG_MAP"                    
+  enable_cluster_creator_admin_permissions = true         # Backwards compat
+  endpoint_private_access = false                         # Backwards compat
   # manage_aws_auth_configmap = true
 
   # aws_auth_roles = [
@@ -117,6 +144,15 @@ module "eks" {
       cidr_blocks      = ["0.0.0.0/0"]
       ipv6_cidr_blocks = ["::/0"]
     }
+    # Metrics Server for Karpenter (Previously 4443/TCP): https://github.com/kubernetes-sigs/metrics-server/issues/1271
+    ingress_nodes_matrics_server_port = {
+      description                   = "Cluster API to Nodegroup for Metrics Server"
+      protocol                      = "tcp"
+      from_port                     = 10250
+      to_port                       = 10250
+      type                          = "ingress"
+      cidr_blocks                   = [local.vpc_cidr]
+    }
   }
 
   # Add karpenter.sh/discovery tag so that we can use this as securityGroupSelector in karpenter provisioner
@@ -133,7 +169,6 @@ module "eks" {
       iam_role_use_name_prefix   = false                   # Backwards compat
       use_custom_launch_template = false                   # Backwards compat
       ami_type                   = "BOTTLEROCKET_x86_64"
-      create_launch_template     = true 
 
       instance_types = ["t3.large"]
 
@@ -141,9 +176,13 @@ module "eks" {
       max_size     = 2
       desired_size = 2
 
-      labels = {
+      k8s_labels = {
         loadtype = "baseload"
       }
+
+      # # Launch template configuration
+      # create_launch_template = true           # false will use the default launch template
+      # launch_template_os     = "bottlerocket" # amazonlinux2eks or bottlerocket
     }
   }
 
@@ -155,6 +194,51 @@ module "eks" {
   tags = {
     Blueprint  = local.name
     GithubRepo = "https://registry.terraform.io/modules/terraform-aws-modules/eks/aws/latest"
+  }
+}
+
+module "ebs_csi_irsa" {
+  source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts"
+  version = "~> 6.8.2"
+
+  attach_ebs_csi_policy = true
+  vpc_cni_enable_ipv4   = true # NOTE: This was what needed to be added
+
+  oidc_providers = {
+    main = {
+      provider_arn               = module.eks.oidc_provider_arn
+      namespace_service_accounts = ["kube-system:ebs-csi-controller-sa"]
+    }
+  }
+}
+
+module "efs_csi_irsa" {
+  source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts"
+  version = "~> 6.8.2"
+
+  attach_efs_csi_policy = true
+  vpc_cni_enable_ipv4   = true # NOTE: This was what needed to be added
+
+  oidc_providers = {
+    main = {
+      provider_arn               = module.eks.oidc_provider_arn
+      namespace_service_accounts = ["kube-system:efs-csi-controller-sa"]
+    }
+  }
+}
+
+module "vpc_cni_irsa" {
+  source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts"
+  version = "~> 6.8.2"
+
+  attach_vpc_cni_policy = true
+  vpc_cni_enable_ipv4   = true # NOTE: This was what needed to be added
+
+  oidc_providers = {
+    main = {
+      provider_arn               = module.eks.oidc_provider_arn
+      namespace_service_accounts = ["kube-system:aws-node"]
+    }
   }
 }
 
@@ -176,7 +260,7 @@ module "eks_blueprints_kubernetes_addons" {
     # Amazon EKS add-ons
     aws-ebs-csi-driver = {
       most_recent              = true
-      # service_account_role_arn = module.ebs_csi_driver_irsa.iam_role_arn
+      service_account_role_arn = module.ebs_csi_irsa.arn
     }
 
     coredns = {
@@ -185,13 +269,14 @@ module "eks_blueprints_kubernetes_addons" {
 
     vpc-cni = {
       most_recent              = true
-      # service_account_role_arn = module.vpc_cni_irsa.iam_role_arn
+      service_account_role_arn = module.vpc_cni_irsa.arn
     }
 
     # aws_efs_csi_driver = {}
     # aws_efs_csi_driver = {
     #   most_recent              = true
-    #   role_policies = [resource.aws_iam_policy.aws_efs_csi_driver_tags.arn]
+    #   # role_policies = [resource.aws_iam_policy.aws_efs_csi_driver_tags.arn]
+    #   # service_account_role_arn = module.eks.eks_managed_node_groups.managed_ondemand.iam_role_arn
     # }
 
     kube-proxy = {
@@ -199,9 +284,9 @@ module "eks_blueprints_kubernetes_addons" {
     }
 
     # Third party add-ons via AWS Marketplace
-    kubecost_kubecost = {
-      most_recent = true
-    }
+    # kubecost_kubecost = {
+    #   most_recent = true
+    # }
 
     eks-pod-identity-agent = {
       before_compute = true
@@ -322,7 +407,7 @@ data "aws_iam_policy_document" "aws_efs_csi_driver_tags" {
 resource "kubernetes_persistent_volume_claim" "efs_shared_disk" {
   metadata {
     name = "efs-reports"
-    namespace = kubernetes_namespace.nginx-demo.metadata[0].name
+    namespace = local.demo_namespace
     labels = {
       "app.kubernetes.io/managed-by" = "Terraform"
     }
@@ -356,6 +441,7 @@ module "karpenter" {
   source  = "terraform-aws-modules/eks/aws//modules/karpenter"
   version = "~> 21.26.0"
 
+  namespace              = kubernetes_namespace.karpenter.metadata[0].name
   cluster_name           = module.eks.cluster_name
   # irsa_oidc_provider_arn = module.eks.oidc_provider.arn
 
@@ -366,11 +452,13 @@ module "karpenter" {
   # https://aws.amazon.com/blogs/containers/amazon-eks-pod-identity-a-new-way-for-applications-on-eks-to-obtain-iam-credentials/
 
   create_iam_role                            = true
-  node_iam_role_name                         = module.eks.node_iam_role_name
+  create_node_iam_role                       = true
+  # node_iam_role_arn                          = module.eks.eks_managed_node_groups.managed_ondemand.iam_role_arn
   create_pod_identity_association            = true
   tags                                       = local.tags
   create_instance_profile                    = true
   enable_spot_termination                    = true
+  enable_inline_policy                       = true # https://github.com/terraform-aws-modules/terraform-aws-eks/issues/3692
   node_iam_role_additional_policies = {
     "AmazonEC2ContainerRegistryReadOnly" = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
   }
@@ -458,7 +546,7 @@ resource "kubectl_manifest" "karpenter_node_class" {
         httpProtocolIPv6: disabled
         httpPutResponseHopLimit: 2
         httpTokens: required
-      role: ${module.eks.eks_managed_node_groups.managed_ondemand.iam_role_arn}
+      role: ${module.karpenter.node_iam_role_name}
       securityGroupSelectorTerms:
       - tags:
           karpenter.sh/discovery/${module.eks.cluster_name}: ${module.eks.cluster_name}
@@ -581,6 +669,7 @@ module "irsa" {
 
   tags = local.tags
 }
+
 resource "aws_iam_policy" "hpa_irsa_policy" {
   name        = "${local.name}-kubectl-hpa-irsa-policy"
   path        = "/"
@@ -611,10 +700,17 @@ resource "aws_iam_policy" "hpa_irsa_policy" {
           "eks:ListIdentityProviderConfigs"
         ]
         Effect   = "Allow"
-        Resource = module.eks.cluster_id
+        Resource = module.eks.cluster_arn
       },
     ]
   })
+}
+
+resource "kubernetes_service_account" "kubectl-hpa" {
+  metadata {
+    name      = "kubectl-hpa"
+    namespace = kubernetes_namespace.kubectl.metadata[0].name
+  }
 }
 
 resource "kubernetes_cluster_role_binding" "hpa_irsa_rolebinding" {
@@ -628,7 +724,7 @@ resource "kubernetes_cluster_role_binding" "hpa_irsa_rolebinding" {
   }
   subject {
     kind      = "ServiceAccount"
-    name      = "kubectl-hpa"
+    name      = kubernetes_service_account.kubectl-hpa.metadata[0].name
     namespace = kubernetes_namespace.kubectl.metadata[0].name
   }
 }
