@@ -49,9 +49,9 @@ provider "helm" {
   kubernetes = {
     # config_path = "~/.kube/config"
 
-    # host                   = data.aws_eks_cluster.cluster.endpoint
-    # cluster_ca_certificate = base64decode(data.aws_eks_cluster.cluster.certificate_authority[0].data)
-    # token                  = data.aws_eks_cluster_auth.cluster.token
+    host                   = data.aws_eks_cluster.cluster.endpoint
+    cluster_ca_certificate = base64decode(data.aws_eks_cluster.cluster.certificate_authority[0].data)
+    token                  = data.aws_eks_cluster_auth.cluster.token
   
     host                   = data.aws_eks_cluster.cluster.endpoint
     cluster_ca_certificate = base64decode(data.aws_eks_cluster.cluster.certificate_authority[0].data)
@@ -114,9 +114,11 @@ module "eks" {
   #   # }
 
     vpc-cni = { # VPC dependency for Managed Node Group
-      most_recent              = true
-      service_account_role_arn = module.vpc_cni_irsa.arn
-      before_compute = true
+      most_recent                 = true
+      service_account_role_arn    = module.vpc_cni_irsa.arn
+      before_compute              = true
+      resolve_conflicts_on_create = "OVERWRITE"
+      resolve_conflicts_on_update = "OVERWRITE"
     }
 
 
@@ -308,8 +310,8 @@ module "eks_blueprints_kubernetes_addons" {
 
     aws-efs-csi-driver = {
       most_recent              = true
-      # role_policies = [resource.aws_iam_policy.aws_efs_csi_driver_tags.arn]
-      # service_account_role_arn = module.efs_csi_irsa.arn
+      role_policies = [resource.aws_iam_policy.aws_efs_csi_driver_tags.arn]
+      service_account_role_arn = module.efs_csi_irsa.arn
     }
 
     kube-proxy = {
@@ -322,7 +324,7 @@ module "eks_blueprints_kubernetes_addons" {
     # }
 
     eks-pod-identity-agent = {
-      before_compute = true
+      before_compute              = true
     }
 
   # depends_on = [
@@ -467,20 +469,14 @@ resource "kubernetes_persistent_volume_claim" "efs_shared_disk" {
 # Karpenter
 ################################################################################
 
-resource "kubernetes_namespace" "karpenter" {
-  metadata {
-    name = "karpenter"
-    labels = {
-      "app.kubernetes.io/managed-by" = "Terraform"
-    }
-  }
-}
+# https://karpenter.sh/docs/upgrading/upgrade-guide/#upgrading-to-0330
+# We now recommend that you set the installation namespace for your Karpenter controllers to kube-system to denote Karpenter as a critical cluster component. 
 
 module "karpenter" {
   source  = "terraform-aws-modules/eks/aws//modules/karpenter"
   version = "~> 21.26.0"
 
-  namespace              = kubernetes_namespace.karpenter.metadata[0].name
+  namespace              = "kube-system"
   cluster_name           = module.eks.cluster_name
   # irsa_oidc_provider_arn = module.eks.oidc_provider.arn
 
@@ -505,7 +501,7 @@ module "karpenter" {
 
 # https://karpenter.sh/v1.0/upgrading/upgrade-guide/#crd-upgrades
 resource "helm_release" "karpenter-crd" {
-  namespace  = kubernetes_namespace.karpenter.metadata[0].name
+  namespace  = "kube-system"
   name       = "karpenter-crd"
   repository = "oci://public.ecr.aws/karpenter"
   # Rate of unauthenticated image pulls: 1 per second
@@ -523,7 +519,7 @@ resource "helm_release" "karpenter-crd" {
 }
 
 resource "helm_release" "karpenter" {
-  namespace  = kubernetes_namespace.karpenter.metadata[0].name
+  namespace  = "kube-system"
   name       = "karpenter"
   repository = "oci://public.ecr.aws/karpenter"
   # Rate of unauthenticated image pulls: 1 per second

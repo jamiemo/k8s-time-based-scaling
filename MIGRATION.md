@@ -3,18 +3,19 @@ The terraform state needs to be migrated to avoid deleting and re-creating resou
 
 ## Initial Changes
 ```bash
+  # module.eks.data.aws_eks_addon_version.this["vpc-cni"] will be read during apply
   # module.eks.data.tls_certificate.this[0] will be read during apply
   # module.eks.aws_cloudwatch_log_group.this[0] will be created
   # module.eks.aws_ec2_tag.cluster_primary_security_group["Blueprint"] will be created
   # module.eks.aws_ec2_tag.cluster_primary_security_group["GithubRepo"] will be created
-  # module.eks.aws_eks_access_entry.this["cluster_creator"] will be created
-  # module.eks.aws_eks_access_policy_association.this["cluster_creator_admin"] will be created
+  # module.eks.aws_eks_addon.before_compute["vpc-cni"] will be created
   # module.eks.aws_eks_cluster.this[0] will be created
   # module.eks.aws_iam_openid_connect_provider.oidc_provider[0] will be created
   # module.eks.aws_iam_policy.cluster_encryption[0] will be created
   # module.eks.aws_iam_role.this[0] will be created
   # module.eks.aws_iam_role_policy_attachment.additional["AmazonEBSCSIDriverPolicy"] will be created
   # module.eks.aws_iam_role_policy_attachment.additional["AmazonEC2ContainerRegistryReadOnly"] will be created
+  # module.eks.aws_iam_role_policy_attachment.additional["AmazonEKS_CNI_Policy"] will be created
   # module.eks.aws_iam_role_policy_attachment.cluster_encryption[0] will be created
   # module.eks.aws_iam_role_policy_attachment.this["AmazonEKSClusterPolicy"] will be created
   # module.eks.aws_security_group.cluster[0] will be created
@@ -37,10 +38,10 @@ The terraform state needs to be migrated to avoid deleting and re-creating resou
   # module.eks_blueprints.kubernetes_config_map.aws_auth[0] will be destroyed
   # module.eks_blueprints_kubernetes_addons.aws_cloudformation_stack.usage_telemetry[0] will be created
   # module.eks_blueprints_kubernetes_addons.aws_eks_addon.this["aws-ebs-csi-driver"] will be created
+  # module.eks_blueprints_kubernetes_addons.aws_eks_addon.this["aws-efs-csi-driver"] will be created
   # module.eks_blueprints_kubernetes_addons.aws_eks_addon.this["coredns"] will be created
   # module.eks_blueprints_kubernetes_addons.aws_eks_addon.this["eks-pod-identity-agent"] will be created
   # module.eks_blueprints_kubernetes_addons.aws_eks_addon.this["kube-proxy"] will be created
-  # module.eks_blueprints_kubernetes_addons.aws_eks_addon.this["vpc-cni"] will be created
   # module.eks_blueprints_kubernetes_addons.random_bytes.this will be created
   # module.eks_blueprints_kubernetes_addons.time_sleep.dataplane will be destroyed
   # module.eks_blueprints_kubernetes_addons.time_sleep.this will be created
@@ -122,6 +123,10 @@ The terraform state needs to be migrated to avoid deleting and re-creating resou
   ```
 
 ## Migrate 
+```bash
+terraform init -upgrade
+```
+
 [Cluster](https://github.com/aws-ia/terraform-aws-eks-blueprints/blob/main/docs/v4-to-v5/cluster.md#upgrade-migrations)
 ```bash
 # This is not removing the configmap from the cluster - it will be adopted by the new module
@@ -233,17 +238,18 @@ terraform state mv 'module.eks_blueprints_kubernetes_addons.module.aws_ebs_csi_d
 ```bash
   # module.eks.aws_eks_cluster.this[0] has changed
   # module.eks.module.kms.aws_kms_key.this[0] has changed
+  # module.eks.data.aws_eks_addon_version.this["vpc-cni"] will be read during apply
   # module.eks.data.tls_certificate.this[0] will be read during apply
   # module.eks.aws_cloudwatch_log_group.this[0] will be created
   # module.eks.aws_ec2_tag.cluster_primary_security_group["GithubRepo"] will be updated in-place
-  # module.eks.aws_eks_access_entry.this["cluster_creator"] will be created
-  # module.eks.aws_eks_access_policy_association.this["cluster_creator_admin"] will be created
+  # module.eks.aws_eks_addon.before_compute["vpc-cni"] will be created
   # module.eks.aws_eks_cluster.this[0] will be updated in-place
   # module.eks.aws_iam_openid_connect_provider.oidc_provider[0] will be updated in-place
   # module.eks.aws_iam_policy.cluster_encryption[0] will be created
   # module.eks.aws_iam_role.this[0] will be updated in-place
   # module.eks.aws_iam_role_policy_attachment.additional["AmazonEBSCSIDriverPolicy"] will be created
   # module.eks.aws_iam_role_policy_attachment.additional["AmazonEC2ContainerRegistryReadOnly"] will be created
+  # module.eks.aws_iam_role_policy_attachment.additional["AmazonEKS_CNI_Policy"] will be created
   # module.eks.aws_iam_role_policy_attachment.cluster_encryption[0] will be created
   # module.eks.aws_iam_role_policy_attachment.this["AmazonEKSVPCResourceController"] will be destroyed
   # module.eks.aws_security_group.cluster[0] will be updated in-place
@@ -261,10 +267,10 @@ terraform state mv 'module.eks_blueprints_kubernetes_addons.module.aws_ebs_csi_d
   # module.eks.time_sleep.this[0] will be created
   # module.eks_blueprints_kubernetes_addons.aws_cloudformation_stack.usage_telemetry[0] will be created
   # module.eks_blueprints_kubernetes_addons.aws_eks_addon.this["aws-ebs-csi-driver"] will be updated in-place
+  # module.eks_blueprints_kubernetes_addons.aws_eks_addon.this["aws-efs-csi-driver"] will be created
   # module.eks_blueprints_kubernetes_addons.aws_eks_addon.this["coredns"] will be updated in-place
   # module.eks_blueprints_kubernetes_addons.aws_eks_addon.this["eks-pod-identity-agent"] will be created
   # module.eks_blueprints_kubernetes_addons.aws_eks_addon.this["kube-proxy"] will be updated in-place
-  # module.eks_blueprints_kubernetes_addons.aws_eks_addon.this["vpc-cni"] will be updated in-place
   # module.eks_blueprints_kubernetes_addons.random_bytes.this will be created
   # module.eks_blueprints_kubernetes_addons.time_sleep.dataplane will be destroyed
   # module.eks_blueprints_kubernetes_addons.time_sleep.this will be created
@@ -303,6 +309,7 @@ terraform state mv 'module.eks_blueprints_kubernetes_addons.module.aws_ebs_csi_d
   # module.eks_blueprints_kubernetes_addons.module.aws_efs_csi_driver.aws_iam_role_policy_attachment.this[0] will be created
   # module.eks_blueprints_kubernetes_addons.module.aws_efs_csi_driver.helm_release.this[0] will be created
   # module.eks_blueprints_kubernetes_addons.module.aws_efs_csi_driver[0].aws_iam_policy.aws_efs_csi_driver will be destroyed
+  # module.eks_blueprints_kubernetes_addons.module.aws_vpc_cni[0].aws_eks_addon.vpc_cni will be destroyed
   # module.eks_blueprints_kubernetes_addons.module.metrics_server.helm_release.this[0] will be created
   # module.eks.module.eks_managed_node_group["managed_ondemand"].module.user_data.null_resource.validate_cluster_service_cidr will be created
   # module.eks_blueprints_kubernetes_addons.module.aws_ebs_csi_driver[0].module.irsa_addon[0].aws_iam_role.irsa[0] will be destroyed
@@ -355,8 +362,19 @@ kubectl delete nodepool default --force -no-wait
 kubectl delete EC2NodeClass default --force -no-wait
 ```
 
+### Prepare to Move to kube-system Namespace
 ```bash
 helm uninstall karpenter -n karpenter
+helm uninstall karpenter-crd -n karpenter
+kubectl annotate crd nodeclaims.karpenter.sh meta.helm.sh/release-namespace=kube-system --overwrite
+kubectl annotate crd nodeclaims.karpenter.sh meta.helm.sh/release-name=karpenter --overwrite
+kubectl label crd nodeclaims.karpenter.sh app.kubernetes.io/managed-by=Helm --overwrite
+# kubectl rollout restart deployment karpenter -n kube-system
+```
+
+### Uninstall aws-efs-csi-driver
+```bash
+helm uninstall aws-efs-csi-driver -n kube-system
 ```
 
 # Terraform Apply
