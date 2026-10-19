@@ -62,7 +62,7 @@ provider "helm" {
         # This requires the awscli to be installed locally where Terraform is executed
         args = ["eks", "get-token", "--cluster-name", data.aws_eks_cluster.cluster.id]
       }
-    }
+  }
 }
 
 provider "kubectl" {
@@ -102,11 +102,37 @@ module "eks" {
 
   kms_key_aliases = [local.name] # Backwards compat
 
+  addons = {
+  #   # Amazon EKS add-ons
+  #   # aws-ebs-csi-driver = {
+  #   #   most_recent              = true
+  #   #   service_account_role_arn = module.ebs_csi_irsa.arn
+  #   # }
+
+  #   # coredns = {
+  #   #   most_recent = true
+  #   # }
+
+    vpc-cni = { # VPC dependency for Managed Node Group
+      most_recent              = true
+      service_account_role_arn = module.vpc_cni_irsa.arn
+      before_compute = true
+    }
+
+
+  #   eks-pod-identity-agent = {
+  #     before_compute = 
+  #   # kube-proxy = {
+  #   #   most_recent              = true
+  #   # }true
+  #   }
+  }
+
   vpc_id     = module.vpc.vpc_id
   subnet_ids = module.vpc.private_subnets
 
   authentication_mode = "API_AND_CONFIG_MAP"                    
-  enable_cluster_creator_admin_permissions = true         # Backwards compat
+  # enable_cluster_creator_admin_permissions = true         # Backwards compat
   endpoint_private_access = false                         # Backwards compat
   # manage_aws_auth_configmap = true
 
@@ -161,6 +187,8 @@ module "eks" {
   }
 
   eks_managed_node_groups = {
+    # ToDo: Depend On Add-Ons during upgrade
+
     managed_ondemand = {
       node_group_name            = "managed-ondemand"      # Backwards compat
       node_group_name_prefix     = "managed-ondemand-"     # Backwards compat
@@ -180,13 +208,14 @@ module "eks" {
         loadtype = "baseload"
       }
 
-      # # Launch template configuration
-      # create_launch_template = true           # false will use the default launch template
-      # launch_template_os     = "bottlerocket" # amazonlinux2eks or bottlerocket
+      # Launch template configuration
+      create_launch_template = false           # false will use the default launch template
+      launch_template_os     = "bottlerocket" # amazonlinux2eks or bottlerocket
     }
   }
 
   iam_role_additional_policies = {
+    "AmazonEKS_CNI_Policy" = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy",
     "AmazonEC2ContainerRegistryReadOnly" = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly",
     "AmazonEBSCSIDriverPolicy" = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
   }
@@ -201,6 +230,7 @@ module "ebs_csi_irsa" {
   source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts"
   version = "~> 6.8.2"
 
+  name = "${local.name}-ebs-csi-irsa"
   attach_ebs_csi_policy = true
   vpc_cni_enable_ipv4   = true # NOTE: This was what needed to be added
 
@@ -216,6 +246,7 @@ module "efs_csi_irsa" {
   source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts"
   version = "~> 6.8.2"
 
+  name = "${local.name}-efs-csi-irsa"
   attach_efs_csi_policy = true
   vpc_cni_enable_ipv4   = true # NOTE: This was what needed to be added
 
@@ -231,6 +262,7 @@ module "vpc_cni_irsa" {
   source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts"
   version = "~> 6.8.2"
 
+name = "${local.name}-vpc-cni-irsa"
   attach_vpc_cni_policy = true
   vpc_cni_enable_ipv4   = true # NOTE: This was what needed to be added
 
@@ -261,23 +293,24 @@ module "eks_blueprints_kubernetes_addons" {
     aws-ebs-csi-driver = {
       most_recent              = true
       service_account_role_arn = module.ebs_csi_irsa.arn
+      before_compute = true
     }
 
     coredns = {
       most_recent = true
     }
 
-    vpc-cni = {
-      most_recent              = true
-      service_account_role_arn = module.vpc_cni_irsa.arn
-    }
-
-    # aws_efs_csi_driver = {}
-    # aws_efs_csi_driver = {
+    # vpc-cni = {
     #   most_recent              = true
-    #   # role_policies = [resource.aws_iam_policy.aws_efs_csi_driver_tags.arn]
-    #   # service_account_role_arn = module.eks.eks_managed_node_groups.managed_ondemand.iam_role_arn
+    #   service_account_role_arn = module.vpc_cni_irsa.arn
+    #   before_compute = true
     # }
+
+    aws-efs-csi-driver = {
+      most_recent              = true
+      # role_policies = [resource.aws_iam_policy.aws_efs_csi_driver_tags.arn]
+      # service_account_role_arn = module.efs_csi_irsa.arn
+    }
 
     kube-proxy = {
       most_recent              = true
@@ -291,6 +324,12 @@ module "eks_blueprints_kubernetes_addons" {
     eks-pod-identity-agent = {
       before_compute = true
     }
+
+  # depends_on = [
+  #   # module.ebs_csi_irsa,
+  #   # module.efs_csi_irsa,
+  #   module.vpc_cni_irsa.arn
+  # ]
 
   }
 
