@@ -49,9 +49,9 @@ provider "helm" {
   kubernetes = {
     # config_path = "~/.kube/config"
 
-    host                   = data.aws_eks_cluster.cluster.endpoint
-    cluster_ca_certificate = base64decode(data.aws_eks_cluster.cluster.certificate_authority[0].data)
-    token                  = data.aws_eks_cluster_auth.cluster.token
+    # host                   = data.aws_eks_cluster.cluster.endpoint
+    # cluster_ca_certificate = base64decode(data.aws_eks_cluster.cluster.certificate_authority[0].data)
+    # token                  = data.aws_eks_cluster_auth.cluster.token
   
     host                   = data.aws_eks_cluster.cluster.endpoint
     cluster_ca_certificate = base64decode(data.aws_eks_cluster.cluster.certificate_authority[0].data)
@@ -211,13 +211,13 @@ module "eks" {
       }
 
       # Launch template configuration
-      create_launch_template = false           # false will use the default launch template
+      create_launch_template = false          # false will use the default launch template
       launch_template_os     = "bottlerocket" # amazonlinux2eks or bottlerocket
     }
   }
 
   iam_role_additional_policies = {
-    "AmazonEKS_CNI_Policy" = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy",
+    # "AmazonEKS_CNI_Policy" = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy",
     "AmazonEC2ContainerRegistryReadOnly" = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly",
     "AmazonEBSCSIDriverPolicy" = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
   }

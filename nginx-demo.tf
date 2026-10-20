@@ -56,7 +56,9 @@ resource "kubernetes_deployment" "nginx_demo" {
     }
   }
   depends_on = [
-    module.eks_blueprints_kubernetes_addons
+    module.eks_blueprints_kubernetes_addons,
+    helm_release.karpenter,
+    helm_release.karpenter-crd
   ]
   timeouts {
     create = "5m"
