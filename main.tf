@@ -32,7 +32,7 @@ provider "kubernetes" {
   host                   = data.aws_eks_cluster.cluster.endpoint
   cluster_ca_certificate = base64decode(data.aws_eks_cluster.cluster.certificate_authority[0].data)
   exec {
-    api_version = "client.authentication.k8s.io/v1beta1"
+    api_version = "client.authentication.k8s.io/v1"
     command     = "aws"
     # This requires the awscli to be installed locally where Terraform is executed
     args = ["eks", "get-token", "--cluster-name", data.aws_eks_cluster.cluster.id]
@@ -57,7 +57,7 @@ provider "helm" {
     cluster_ca_certificate = base64decode(data.aws_eks_cluster.cluster.certificate_authority[0].data)
     load_config_file       = false
     exec = {
-        api_version = "client.authentication.k8s.io/v1beta1"
+        api_version = "client.authentication.k8s.io/v1"
         command     = "aws"
         # This requires the awscli to be installed locally where Terraform is executed
         args = ["eks", "get-token", "--cluster-name", data.aws_eks_cluster.cluster.id]
@@ -77,7 +77,7 @@ provider "kubectl" {
   cluster_ca_certificate = base64decode(data.aws_eks_cluster.cluster.certificate_authority[0].data)
   load_config_file       = false
   exec {
-    api_version = "client.authentication.k8s.io/v1beta1"
+    api_version = "client.authentication.k8s.io/v1"
     command     = "aws"
     # This requires the awscli to be installed locally where Terraform is executed
     args = ["eks", "get-token", "--cluster-name", data.aws_eks_cluster.cluster.id]
@@ -288,7 +288,9 @@ module "eks_blueprints_kubernetes_addons" {
   enable_aws_efs_csi_driver            = true
   # aws_efs_csi_driver_irsa_policies     = [resource.aws_iam_policy.aws_efs_csi_driver_tags.arn]
   enable_metrics_server                = true
-  enable_aws_load_balancer_controller  = false
+  enable_aws_load_balancer_controller  = true
+  enable_external_dns                  = true
+  enable_vpa                           = true
 
   eks_addons = {
     # Amazon EKS add-ons
@@ -302,12 +304,6 @@ module "eks_blueprints_kubernetes_addons" {
       most_recent = true
     }
 
-    # vpc-cni = {
-    #   most_recent              = true
-    #   service_account_role_arn = module.vpc_cni_irsa.arn
-    #   before_compute = true
-    # }
-
     aws-efs-csi-driver = {
       most_recent              = true
       role_policies = [resource.aws_iam_policy.aws_efs_csi_driver_tags.arn]
@@ -318,44 +314,30 @@ module "eks_blueprints_kubernetes_addons" {
       most_recent              = true
     }
 
-    # Third party add-ons via AWS Marketplace
-    # kubecost_kubecost = {
-    #   most_recent = true
-    # }
-
     eks-pod-identity-agent = {
       before_compute              = true
     }
 
-  # depends_on = [
-  #   # module.ebs_csi_irsa,
-  #   # module.efs_csi_irsa,
-  #   module.vpc_cni_irsa.arn
-  # ]
-
+    external-dns = {
+      most_recent              = true
+      addon_version            = "v0.23.0-eksbuild.3" #  Error: reading EKS Add-On version info (external_dns, 1.33): empty result
+      values        = [
+          <<-EOT
+            txtOwnerId: ${module.eks.cluster_name}-external-dns
+            annotationFilter: external-dns.alpha.kubernetes.io/allowed=true
+            provider: aws
+            logLevel: debug
+            policy: sync
+            aws:
+              region: ${data.aws_region.current.region}
+            rbac:
+              create: true
+            nodeSelector:
+              loadtype: baseload
+          EOT
+      ]
+    }
   }
-
-  # karpenter_node                             = module.karpenter.instance_profile_name
-  # karpenter_enable_spot_termination          = true
-
-  # karpenter_helm_config = {
-  #   namespace        = kubernetes_namespace.karpenter.metadata[0].name
-  #   create_namespace = false
-  #   # Collection merge does not work as expected
-  #   # https://github.com/hashicorp/terraform/issues/24236
-  #   values = [
-  #     <<-EOT
-  #         settings:
-  #           aws:
-  #             clusterName: ${module.eks.cluster_id}
-  #             clusterEndpoint: ${module.eks.cluster_endpoint}
-  #             defaultInstanceProfile: ${module.karpenter.instance_profile_name}
-  #             interruptionQueueName: ${module.karpenter.queue_arn}
-  #         nodeSelector:
-  #           loadtype: baseload
-  #       EOT
-  #   ]
-  # }
 
   tags = local.tags
 
@@ -532,8 +514,6 @@ resource "helm_release" "karpenter" {
     <<-EOT
     serviceAccount:
       create: true
-      annotations: 
-        eks.amazonaws.com/role-arn: ${module.karpenter.iam_role_arn}
     settings:
       clusterName: ${module.eks.cluster_name}
       clusterEndpoint: ${module.eks.cluster_endpoint}
